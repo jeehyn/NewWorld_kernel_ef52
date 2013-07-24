@@ -1746,7 +1746,10 @@ config CPU_VOLTAGE_TABLE
 	help
 	  Krait User Votlage Control
 
+<<<<<<< HEAD
 >>>>>>> cb3df4e... GPU Overclock: GPU overclocking to 487.5 MHz
+=======
+>>>>>>> 5e68502... Voltage Control: initial voltage control for MSM S4-Pro SOC
 config MSM_AVS_HW
 	bool "Enable Adaptive Voltage Scaling (AVS)"
 	default n
