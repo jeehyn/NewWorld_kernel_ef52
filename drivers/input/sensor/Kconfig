@@ -1,0 +1,17 @@
+#
+# Input sensor drivers configuration
+#
+
+# PANTECH_SNS_GESTURE, 20130118 Hayden
+config INPUT_IR_SENSOR
+	tristate "PixArt Gesture Sensor & ALS"
+	depends on I2C=y
+	help
+	  Say Y here if you want support for the Gesture & ALS based on AP
+	  If you are based on DSPS, say N.
+config COVER_IN_ALL_DIRECTION
+	bool "Gesture Sensor Cover in all direction"
+	depends on INPUT_IR_SENSOR=y
+	help
+	  Say Y here if you want to use cover algorithm2 for the Gesture based on AP
+	  If you are based on DSPS, say N.
