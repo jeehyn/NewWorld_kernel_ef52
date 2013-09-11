@@ -31,7 +31,7 @@ fi
 if [ "$1" = "" ]; then
   make CONFIG_NO_ERROR_ON_MISMATCH=y CONFIG_DEBUG_SECTION_MISMATCH=y -j16 O=$ODIR ARCH=arm CROSS_COMPILE=$TOOLCHAIN zImage
 elif [ "$1" == "modules" ]; then
-  make -j16 0=$ODIR ARCH=arm CROSS_COMPILE=$TOOLCAHIN modules
+  make CONFIG_NO_ERROR_ON_MISMATCH=y CONFIG_DEBUG_SECTION_MISMATCH=y -j16 O=$ODIR ARCH=arm CROSS_COMPILE=$TOOLCHAIN modules
   cd ..
   ./getmod.sh
 else
