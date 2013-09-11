@@ -114,6 +114,8 @@ source "drivers/staging/ft1000/Kconfig"
 
 source "drivers/staging/speakup/Kconfig"
 
+source "drivers/staging/prima/Kconfig"
+
 source "drivers/staging/cptm1217/Kconfig"
 
 source "drivers/staging/ste_rmi4/Kconfig"
@@ -133,5 +135,7 @@ source "drivers/staging/telephony/Kconfig"
 source "drivers/staging/ramster/Kconfig"
 
 source "drivers/staging/ozwpan/Kconfig"
+
+source "drivers/staging/prima/Kconfig"
 
 endif # STAGING
