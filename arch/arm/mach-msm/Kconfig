@@ -1696,17 +1696,14 @@ config MSM_CPU_FREQ_MIN
 
 endif # CPU_FREQ_MSM
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
+
 config LOW_CPUCLOCKS
 	bool "Enable ultra low CPU clocks"
 	default n
 	help
 	  Ultra low cpu frequencies enabled for CPU and L2 Cache
 
-=======
->>>>>>> 6beded6... intelli_plug: intelligent hotplug cpu driver with eco mode
+
 config INTELLI_PLUG
 	bool "Enable intelli-plug cpu hotplug driver"
 	default n
@@ -1749,10 +1746,7 @@ config CPU_VOLTAGE_TABLE
 	help
 	  Krait User Votlage Control
 
-<<<<<<< HEAD
->>>>>>> cb3df4e... GPU Overclock: GPU overclocking to 487.5 MHz
-=======
->>>>>>> 5e68502... Voltage Control: initial voltage control for MSM S4-Pro SOC
+
 config MSM_AVS_HW
 	bool "Enable Adaptive Voltage Scaling (AVS)"
 	default n

@@ -138,11 +138,8 @@ static void tz_wake(struct kgsl_device *device, struct kgsl_pwrscale *pwrscale)
 		kgsl_pwrctrl_pwrlevel_change(device,
 					device->pwrctrl.default_pwrlevel);
 }
-
-<<<<<<< HEAD
 static void tz_idle(struct kgsl_device *device, struct kgsl_pwrscale *pwrscale,
-						unsigned int ignore_idle)
-=======
+			unsigned int ignore_idle);
 #ifdef CONFIG_MSM_KGSL_SIMPLE_GOV
 /* KGSL Simple GPU Governor */
 /* Copyright (c) 2011-2013, Paul Reioux (Faux123). All rights reserved. */
@@ -186,8 +183,8 @@ static int simple_governor(struct kgsl_device *device, int idle_stat)
 }
 #endif
 
-static void tz_idle(struct kgsl_device *device, struct kgsl_pwrscale *pwrscale)
->>>>>>> 29fb080... KGSL: Add a simple GPU governor for Adreno xxx GPU series
+static void tz_idle(struct kgsl_device *device, struct kgsl_pwrscale *pwrscale,
+						unsigned int ignore_idle)
 {
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	struct tz_priv *priv = pwrscale->priv;
