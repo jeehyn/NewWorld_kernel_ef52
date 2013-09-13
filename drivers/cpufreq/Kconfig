@@ -58,24 +58,6 @@ config CPU_FREQ_DEFAULT_GOV_PERFORMANCE
 	  the frequency statically to the highest frequency supported by
 	  the CPU.
 
-config CPU_FREQ_DEFAULT_GOV_POWERSAVE
-	bool "powersave"
-	depends on EXPERT
-	select CPU_FREQ_GOV_POWERSAVE
-	help
-	  Use the CPUFreq governor 'powersave' as default. This sets
-	  the frequency statically to the lowest frequency supported by
-	  the CPU.
-
-config CPU_FREQ_DEFAULT_GOV_USERSPACE
-	bool "userspace"
-	select CPU_FREQ_GOV_USERSPACE
-	help
-	  Use the CPUFreq governor 'userspace' as default. This allows
-	  you to set the CPU frequency manually or when a userspace 
-	  program shall be able to set the CPU dynamically without having
-	  to enable the userspace governor manually.
-
 config CPU_FREQ_DEFAULT_GOV_ONDEMAND
 	bool "ondemand"
 	select CPU_FREQ_GOV_ONDEMAND
@@ -108,7 +90,26 @@ config CPU_FREQ_DEFAULT_GOV_INTERACTIVE
 	  you to get a full dynamic cpu frequency capable system by simply
 	  loading your cpufreq low-level hardware driver, using the
 	  'interactive' governor for latency-sensitive workloads.
-
+config CPU_FREQ_DEFAULT_GOV_NEWWORLD
+	bool "New-World"
+	select CPU_FREQ_GOV_NEWWORLD
+	help
+	Governor NewWorld : Welcome To NewWorld!
+config CPU_FREQ_DEFAULT_GOV_INTELLIDEMAND
+	bool "intellidemand"
+	select CPU_FREQ_GOV_INTELLIDEMAND
+	help
+	Governor intellidemand
+config CPU_FREQ_DEFAULT_GOV_LAZY
+	bool "lazy"
+	select CPU_FREQ_GOV_LAZY
+	help
+	Governor lazy
+config CPU_FREQ_DEFAULT_GOV_INTERACTVIEX
+	bool "interactiveX"
+	select CPU_FREQ_GOV_INTERACTIVEX
+	help
+	Governor interactiveX
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
@@ -119,32 +120,6 @@ config CPU_FREQ_GOV_PERFORMANCE
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called cpufreq_performance.
-
-	  If in doubt, say Y.
-
-config CPU_FREQ_GOV_POWERSAVE
-	tristate "'powersave' governor"
-	help
-	  This cpufreq governor sets the frequency statically to the
-	  lowest available CPU frequency.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called cpufreq_powersave.
-
-	  If in doubt, say Y.
-
-config CPU_FREQ_GOV_USERSPACE
-	tristate "'userspace' governor for userspace frequency scaling"
-	help
-	  Enable this cpufreq governor when you either want to set the
-	  CPU frequency manually or when a userspace program shall
-	  be able to set the CPU dynamically, like on LART 
-	  <http://www.lartmaker.nl/>.
-
-	  To compile this driver as a module, choose M here: the
-	  module will be called cpufreq_userspace.
-
-	  For details, take a look at <file:Documentation/cpu-freq/>.
 
 	  If in doubt, say Y.
 
@@ -205,7 +180,26 @@ config CPU_FREQ_GOV_CONSERVATIVE
 	  For details, take a look at linux/Documentation/cpu-freq.
 
 	  If in doubt, say N.
-
+config CPU_FREQ_GOV_NEWWORLD
+	tristate "'NewWorld' cpufreq governor"
+	depends on CPU_FREQ
+	help
+	governor NewWorld : Welcome To NewWorld!
+config CPU_FREQ_GOV_INTELLIDEMAND
+	tristate "'intellidemand' cpufreq governor"
+	depends on CPU_FREQ
+	help
+	governor intellidemand
+config CPU_FREQ_GOV_LAZY
+	tristate "'lazy' cpufreq governor"
+	depends on CPU_FREQ
+	help
+	governor lazy
+config CPU_FREQ_GOV_INTERACTIVEX
+	tristate "'interactiveX' cpufreq governor"
+	depends on CPU_FREQ
+	help
+	governor interactiveX
 menu "x86 CPU frequency scaling drivers"
 depends on X86
 source "drivers/cpufreq/Kconfig.x86"
