@@ -337,7 +337,6 @@ struct root_domain {
 extern struct root_domain def_root_domain;
 
 #endif /* CONFIG_SMP */
-
 /*
  * This is the main, per-CPU runqueue data structure.
  *
@@ -441,13 +440,15 @@ struct rq {
 #endif
 	struct hrtimer hrtick_timer;
 #endif
-
+	seqcount_t ave_seqcnt;
+	u64 nr_last_stamp;
+	unsigned int ave_nr_running;
 #ifdef CONFIG_SCHEDSTATS
 	/* latency stats */
 	struct sched_info rq_sched_info;
 	unsigned long long rq_cpu_time;
 	/* could above be rq->cfs_rq.exec_clock + rq->rt_rq.rt_runtime ? */
-
+	
 	/* sys_sched_yield() stats */
 	unsigned int yld_count;
 
