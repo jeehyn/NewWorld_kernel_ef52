@@ -33,8 +33,8 @@
  * It helps to keep variable names smaller, simpler
  */
 
-#define DEF_FREQUENCY_UP_THRESHOLD		(95)
-#define DEF_FREQUENCY_DOWN_THRESHOLD		(40)
+#define DEF_FREQUENCY_UP_THRESHOLD		(80)
+#define DEF_FREQUENCY_DOWN_THRESHOLD		(35)
 
 /*
  * The polling frequency of this governor depends on the capability of
@@ -46,13 +46,13 @@
  * this governor will not work.
  * All times here are in uS.
  */
-#define MIN_SAMPLING_RATE_RATIO			(2)
+#define MIN_SAMPLING_RATE_RATIO			(1)
 
 static unsigned int min_sampling_rate;
 
 #define LATENCY_MULTIPLIER			(1000)
 #define MIN_LATENCY_MULTIPLIER			(100)
-#define DEF_SAMPLING_DOWN_FACTOR		(0)
+#define DEF_SAMPLING_DOWN_FACTOR		(1)
 #define MAX_SAMPLING_DOWN_FACTOR		(10)
 #define TRANSITION_LATENCY_LIMIT		(10 * 1000 * 1000)
 //early suspend varablies
@@ -325,7 +325,7 @@ static struct attribute *dbs_attributes[] = {
 
 static struct attribute_group dbs_attr_group = {
 	.attrs = dbs_attributes,
-	.name = "newworld", // if you want to working at TricksterMod, set it to newworld
+	.name = "newworld",
 };
 
 
@@ -359,8 +359,27 @@ static struct early_suspend cpufreq_newworld_early_suspend_info = {
 	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1,
 };
 #endif
+static unsigned long freq_limit = 0;
+static unsigned long freq_abort_count = 5;
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
+	/*tweak : full speed tweak
+	* if user request same clock 10 times,
+	* clock is set as max clock :D
+	*/
+	if( freq_limit == 10 ){
+		if(freq_abort_count == 0)
+		{
+			freq_limit = 0;
+			freq_abort_count = 5;
+			return;
+		}
+		else{
+			freq_abort_count--;
+			return;
+		}
+	}
+	else{
 	unsigned int load = 0;
 	unsigned int max_load = 0;
 	unsigned int freq_target;
@@ -372,7 +391,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 	/*
 	 * Every sampling_rate, we check, if current idle time is less
-	 * than 40% (tweak), then we try to increase frequency
+	 * than 40% (default), then we try to increase frequency
 	 * Every sampling_rate*sampling_down_factor, we check, if current
 	 * idle time is more than 80%, then we try to decrease frequency
 	 *
@@ -437,8 +456,12 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		this_dbs_info->down_skip = 0;
 
 		/* if we are already at full speed then break out early */
-		if (this_dbs_info->requested_freq == policy->max)
+		if (this_dbs_info->requested_freq == policy->max){
+			freq_limit++; //full speed tweak
 			return;
+		}
+		else
+			freq_limit--;
 
 		freq_target = (dbs_tuners_ins.freq_step * policy->max) / 100;
 
@@ -477,6 +500,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 				CPUFREQ_RELATION_H);
 		return;
 	}
+}
 }
 
 static void do_dbs_timer(struct work_struct *work)
