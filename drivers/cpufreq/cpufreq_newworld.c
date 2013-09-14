@@ -33,8 +33,8 @@
  * It helps to keep variable names smaller, simpler
  */
 
-#define DEF_FREQUENCY_UP_THRESHOLD		(80)
-#define DEF_FREQUENCY_DOWN_THRESHOLD		(35)
+#define DEF_FREQUENCY_UP_THRESHOLD		(90)
+#define DEF_FREQUENCY_DOWN_THRESHOLD		(40)
 
 /*
  * The polling frequency of this governor depends on the capability of
@@ -101,7 +101,7 @@ static struct dbs_tuners {
 	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
-	.freq_step = 11,
+	.freq_step = 14,
 };
 
 static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
@@ -364,8 +364,8 @@ static unsigned long freq_abort_count = 5;
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
 	/*tweak : full speed tweak
-	* if user request same clock 10 times,
-	* clock is set as max clock :D
+	* if user request max clock 10 times,
+	* clock is set as max clock 5 times :D
 	*/
 	if( freq_limit == 10 ){
 		if(freq_abort_count == 0)
