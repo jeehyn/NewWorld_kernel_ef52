@@ -32,9 +32,16 @@
  * dbs is used in this file as a shortform for demandbased switching
  * It helps to keep variable names smaller, simpler
  */
-
-#define DEF_FREQUENCY_UP_THRESHOLD		(90)
-#define DEF_FREQUENCY_DOWN_THRESHOLD		(40)
+/* special addon : normal mode and full mode
+* when max clock loades 10 times, full mode is working at 10 time
+* I think this is great :p
+*/
+#define NOM_MODE_FREQUENCY_UP_THRESHOLD		(90)
+#define NOM_MODE_FREQUENCY_DOWN_THRESHOLD		(40)
+#define NOM_MODE_FREQ_STEP 				(14)
+#define FULL_MODE_FREQUENCY_UP_THRESHOLD		(60)
+#define FULL_MODE_FREQUENCY_DOWN_THRESHOLD	(20)
+#define FULL_MODE_FREQ_STEP				(7)
 
 /*
  * The polling frequency of this governor depends on the capability of
@@ -96,14 +103,15 @@ static struct dbs_tuners {
 	unsigned int down_threshold;
 	unsigned int ignore_nice;
 	unsigned int freq_step;
+	unsigned int full_mode_state;
 } dbs_tuners_ins = {
-	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
-	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
+	.up_threshold = NOM_MODE_FREQUENCY_UP_THRESHOLD,
+	.down_threshold = NOM_MODE_FREQUENCY_DOWN_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
-	.freq_step = 14,
+	.freq_step = NOM_MODE_FREQ_STEP,
+	.full_mode_state = 0;	// 0 : Enable and ready OR Working 1: Disable
 };
-
 static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
 {
 	u64 idle_time;
@@ -137,7 +145,23 @@ static inline cputime64_t get_cpu_idle_time(unsigned int cpu, cputime64_t *wall)
 
 	return idle_time;
 }
-
+//full mode function
+static void full_mode_on_off(unsigned int onoff)
+{	
+	// 0 : disable
+	// 1 : enable
+	if(onoff == 0){
+	dbs_tuners_ins.up_threshold = NOM_MODE_FREQUENCY_UP_THRESHOLD;
+	dbs_tuners_ins.down_threshold = NOM_MODE_FREQUENCY_DOWN_THRESHOLD;
+	dbs_tuners_ins.freq_step = NOM_MODE_FREQ_STEP;
+	}
+	else{
+	dbs_tuners_ins.up_threshold = FULL_MODE_FREQUENCY_UP_THRESHOLD;
+	dbs_tuners_ins.down_threshold = FULL_MODE_FREQUENCY_DOWN_THRESHOLD;
+	dbs_tuners_ins.freq_step = FULL_MODE_FREQ_STEP;
+	}
+}
+		
 /* keep track of frequency transitions */
 static int
 dbs_cpufreq_notifier(struct notifier_block *nb, unsigned long val,
@@ -193,6 +217,7 @@ show_one(up_threshold, up_threshold);
 show_one(down_threshold, down_threshold);
 show_one(ignore_nice_load, ignore_nice);
 show_one(freq_step, freq_step);
+show_one(full_mode_on, full_mode_on);
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 					  struct attribute *b,
@@ -305,12 +330,29 @@ static ssize_t store_freq_step(struct kobject *a, struct attribute *b,
 	return count;
 }
 
+static ssize_t store_full_mode_on(struct kobject *a, struct attribute *b,
+			       const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	
+	if (ret != 1)
+		return -EINVAL;
+	// if uncorrect, set as default
+	if (input < 0 || input > 1)
+		input = 0;
+	dbs_tuners_ins.full_mode_on = input;
+	return count;
+}
+
 define_one_global_rw(sampling_rate);
 define_one_global_rw(sampling_down_factor);
 define_one_global_rw(up_threshold);
 define_one_global_rw(down_threshold);
 define_one_global_rw(ignore_nice_load);
 define_one_global_rw(freq_step);
+define_one_global_rw(full_mode_on);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -320,6 +362,7 @@ static struct attribute *dbs_attributes[] = {
 	&down_threshold.attr,
 	&ignore_nice_load.attr,
 	&freq_step.attr,
+	&full_mode_on.attr,
 	NULL
 };
 
@@ -359,27 +402,27 @@ static struct early_suspend cpufreq_newworld_early_suspend_info = {
 	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1,
 };
 #endif
+//full mode
 static unsigned long freq_limit = 0;
-static unsigned long freq_abort_count = 5;
+static unsigned int onoff = 0;
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
 	/*tweak : full speed tweak
 	* if user request max clock 10 times,
-	* clock is set as max clock 5 times :D
+	* settings are set as full mode :D
 	*/
+	if(dbs_tuners_ins.full_mode_on == 0)
+		goto Do;
 	if( freq_limit == 10 ){
-		if(freq_abort_count == 0)
-		{
-			freq_limit = 0;
-			freq_abort_count = 5;
-			return;
-		}
-		else{
-			freq_abort_count--;
-			return;
-		}
+		if(onoff == 0)
+			onoff = 1;
+		else
+			onoff = 0;
+		full_mode_on_off(onoff);
+		freq_limit = 0;
+		goto Do;
 	}
-	else{
+Do:
 	unsigned int load = 0;
 	unsigned int max_load = 0;
 	unsigned int freq_target;
@@ -457,11 +500,12 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 		/* if we are already at full speed then break out early */
 		if (this_dbs_info->requested_freq == policy->max){
-			freq_limit++; //full speed tweak
+			freq_limit++;
 			return;
 		}
-		else
+		else if (freq_limit != 0){
 			freq_limit--;
+		}
 
 		freq_target = (dbs_tuners_ins.freq_step * policy->max) / 100;
 
