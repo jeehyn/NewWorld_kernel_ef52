@@ -501,7 +501,9 @@ Do:
 		/* if we are already at full speed then break out early */
 		if (this_dbs_info->requested_freq == policy->max){
 			freq_limit++;
-			return;
+		if (freq_limit == 9)
+			onoff = 0;
+		return;
 		}
 		else if (freq_limit != 0){
 			freq_limit--;
