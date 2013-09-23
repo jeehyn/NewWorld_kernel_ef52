@@ -1,5 +1,5 @@
 /*
-*  drivers/cpufreq/cpufreq_newworld.c
+*  drivers/cpufreq/cpufreq_smartdroid.c
 *  Patched & tweaked: NewWorld(Bug report : cae11cae@naver.com)
 *  based on governor Conservative, Authers :
 *
@@ -32,17 +32,10 @@
  * dbs is used in this file as a shortform for demandbased switching
  * It helps to keep variable names smaller, simpler
  */
-/* special addon : normal mode and full mode
-* when max clock loades 10 times, full mode is working at 10 time
-* I think this is great :p
-*/
-#define NOM_MODE_FREQUENCY_UP_THRESHOLD		(90)
-#define NOM_MODE_FREQUENCY_DOWN_THRESHOLD		(40)
-#define NOM_MODE_FREQ_STEP 				(14)
-#define FULL_MODE_FREQUENCY_UP_THRESHOLD		(60)
-#define FULL_MODE_FREQUENCY_DOWN_THRESHOLD	(20)
-#define FULL_MODE_FREQ_STEP				(7)
+#define DEF_FREQUENCY_UP_THRESHOLD	(95)
+#define DEF_FREQUENCY_DOWN_THRESHOLD (35)
 
+#define DEF_MODE_FREQ_STEP 				(15)
 /*
  * The polling frequency of this governor depends on the capability of
  * the processor. Default polling frequency is 1000 times the transition
@@ -103,14 +96,13 @@ static struct dbs_tuners {
 	unsigned int down_threshold;
 	unsigned int ignore_nice;
 	unsigned int freq_step;
-	unsigned int full_mode_state;
+	unsigned int intelli_plug_on;
 } dbs_tuners_ins = {
-	.up_threshold = NOM_MODE_FREQUENCY_UP_THRESHOLD,
-	.down_threshold = NOM_MODE_FREQUENCY_DOWN_THRESHOLD,
+	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
+	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
-	.freq_step = NOM_MODE_FREQ_STEP,
-	.full_mode_state = 0;	// 0 : Enable and ready OR Working 1: Disable
+	.freq_step = DEF_MODE_FREQ_STEP,
 };
 static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
 {
@@ -144,22 +136,6 @@ static inline cputime64_t get_cpu_idle_time(unsigned int cpu, cputime64_t *wall)
 		idle_time += get_cpu_iowait_time_us(cpu, wall);
 
 	return idle_time;
-}
-//full mode function
-static void full_mode_on_off(unsigned int onoff)
-{	
-	// 0 : disable
-	// 1 : enable
-	if(onoff == 0){
-	dbs_tuners_ins.up_threshold = NOM_MODE_FREQUENCY_UP_THRESHOLD;
-	dbs_tuners_ins.down_threshold = NOM_MODE_FREQUENCY_DOWN_THRESHOLD;
-	dbs_tuners_ins.freq_step = NOM_MODE_FREQ_STEP;
-	}
-	else{
-	dbs_tuners_ins.up_threshold = FULL_MODE_FREQUENCY_UP_THRESHOLD;
-	dbs_tuners_ins.down_threshold = FULL_MODE_FREQUENCY_DOWN_THRESHOLD;
-	dbs_tuners_ins.freq_step = FULL_MODE_FREQ_STEP;
-	}
 }
 		
 /* keep track of frequency transitions */
@@ -204,7 +180,7 @@ static ssize_t show_sampling_rate_min(struct kobject *kobj,
 
 define_one_global_ro(sampling_rate_min);
 
-/* cpufreq_NewWorld Governor Tunables */
+/* cpufreq_smartdroid Governor Tunables */
 #define show_one(file_name, object)					\
 static ssize_t show_##file_name						\
 (struct kobject *kobj, struct attribute *attr, char *buf)		\
@@ -217,7 +193,6 @@ show_one(up_threshold, up_threshold);
 show_one(down_threshold, down_threshold);
 show_one(ignore_nice_load, ignore_nice);
 show_one(freq_step, freq_step);
-show_one(full_mode_on, full_mode_on);
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 					  struct attribute *b,
@@ -330,29 +305,12 @@ static ssize_t store_freq_step(struct kobject *a, struct attribute *b,
 	return count;
 }
 
-static ssize_t store_full_mode_on(struct kobject *a, struct attribute *b,
-			       const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-	
-	if (ret != 1)
-		return -EINVAL;
-	// if uncorrect, set as default
-	if (input < 0 || input > 1)
-		input = 0;
-	dbs_tuners_ins.full_mode_on = input;
-	return count;
-}
-
 define_one_global_rw(sampling_rate);
 define_one_global_rw(sampling_down_factor);
 define_one_global_rw(up_threshold);
 define_one_global_rw(down_threshold);
 define_one_global_rw(ignore_nice_load);
 define_one_global_rw(freq_step);
-define_one_global_rw(full_mode_on);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -362,20 +320,19 @@ static struct attribute *dbs_attributes[] = {
 	&down_threshold.attr,
 	&ignore_nice_load.attr,
 	&freq_step.attr,
-	&full_mode_on.attr,
 	NULL
 };
 
 static struct attribute_group dbs_attr_group = {
 	.attrs = dbs_attributes,
-	.name = "newworld",
+	.name = "smartdroid",
 };
 
 
 /************************** sysfs end ************************/
 //early suspend tweak :D
 #ifdef CONFIG_EARLYSUSPEND
-static void cpufreq_newworld_early_suspend(struct early_suspend *h)
+static void cpufreq_smartdroid_early_suspend(struct early_suspend *h)
 {
 	mutex_lock(&dbs_mutex);
 	stored_sampling_rate = dbs_tuners_ins.sampling_rate;
@@ -387,7 +344,7 @@ static void cpufreq_newworld_early_suspend(struct early_suspend *h)
 	mutex_unlock(&dbs_mutex);
 }
 
-static void cpufreq_newworld_late_resume(struct early_suspend *h)
+static void cpufreq_smartdroid_late_resume(struct early_suspend *h)
 {
 	mutex_lock(&dbs_mutex);
 	dbs_tuners_ins.sampling_rate = stored_sampling_rate;
@@ -396,33 +353,37 @@ static void cpufreq_newworld_late_resume(struct early_suspend *h)
 	mutex_unlock(&dbs_mutex);
 }
 
-static struct early_suspend cpufreq_newworld_early_suspend_info = {
-	.suspend = cpufreq_newworld_early_suspend,
-	.resume = cpufreq_newworld_late_resume,
+static struct early_suspend cpufreq_smartdroid_early_suspend_info = {
+	.suspend = cpufreq_smartdroid_early_suspend,
+	.resume = cpufreq_smartdroid_late_resume,
 	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1,
 };
 #endif
-//full mode
-static unsigned long freq_limit = 0;
-static unsigned int onoff = 0;
+/* tweak : if cpu wants to increase freq, varaibles are changed fast mode slowly
+* And if cpu wants to decrease freq, varaibles are changed slow mode slowly
+*/
+static int count = -1;
+static void update_gov_tunable(int flag)
+{
+	if(count == 10 || count == -1)
+		return;
+	if(flag)	//Down
+	{
+		dbs_tuners_ins.down_threshold--;
+		dbs_tuners_ins.up_threshold--;
+		dbs_tuners_ins.freq_step--;
+		count--;
+	}
+	else
+	{
+		dbs_tuners_ins.down_threshold++;
+		dbs_tuners_ins.up_threshold++;
+		dbs_tuners_ins.freq_step++;
+		count++;
+	}
+}
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
-	/*tweak : full speed tweak
-	* if user request max clock 10 times,
-	* settings are set as full mode :D
-	*/
-	if(dbs_tuners_ins.full_mode_on == 0)
-		goto Do;
-	if( freq_limit == 10 ){
-		if(onoff == 0)
-			onoff = 1;
-		else
-			onoff = 0;
-		full_mode_on_off(onoff);
-		freq_limit = 0;
-		goto Do;
-	}
-Do:
 	unsigned int load = 0;
 	unsigned int max_load = 0;
 	unsigned int freq_target;
@@ -496,18 +457,12 @@ Do:
 
 	/* Check for frequency increase */
 	if (max_load > dbs_tuners_ins.up_threshold) {
+		update_gov_tunable(0);
 		this_dbs_info->down_skip = 0;
 
 		/* if we are already at full speed then break out early */
-		if (this_dbs_info->requested_freq == policy->max){
-			freq_limit++;
-		if (freq_limit == 9)
-			onoff = 0;
-		return;
-		}
-		else if (freq_limit != 0){
-			freq_limit--;
-		}
+		if (this_dbs_info->requested_freq == policy->max)
+			return;
 
 		freq_target = (dbs_tuners_ins.freq_step * policy->max) / 100;
 
@@ -530,6 +485,7 @@ Do:
 	 * policy. To be safe, we focus 10 points under the threshold.
 	 */
 	if (max_load < (dbs_tuners_ins.down_threshold - 10)) {
+		update_gov_tunable(1);
 		freq_target = (dbs_tuners_ins.freq_step * policy->max) / 100;
 
 		this_dbs_info->requested_freq -= freq_target;
@@ -547,7 +503,7 @@ Do:
 		return;
 	}
 }
-}
+
 
 static void do_dbs_timer(struct work_struct *work)
 {
@@ -699,11 +655,11 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 	return 0;
 }
 
-#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_NEWWORLD
+#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_smartdroid
 static
 #endif
-struct cpufreq_governor cpufreq_gov_newworld = {
-	.name			= "NewWorld",
+struct cpufreq_governor cpufreq_gov_smartdroid = {
+	.name			= "smartdroid",
 	.governor		= cpufreq_governor_dbs,
 	.max_transition_latency	= TRANSITION_LATENCY_LIMIT,
 	.owner			= THIS_MODULE,
@@ -712,22 +668,22 @@ struct cpufreq_governor cpufreq_gov_newworld = {
 static int __init cpufreq_gov_dbs_init(void)
 {
 #ifdef CONFIG_EARLYSUSPEND
-	register_early_suspend(&cpufreq_newworld_early_suspend_info);
+	register_early_suspend(&cpufreq_smartdroid_early_suspend_info);
 #endif
-	return cpufreq_register_governor(&cpufreq_gov_newworld);
+	return cpufreq_register_governor(&cpufreq_gov_smartdroid);
 }
 
 static void __exit cpufreq_gov_dbs_exit(void)
 {
-	cpufreq_unregister_governor(&cpufreq_gov_newworld);
+	cpufreq_unregister_governor(&cpufreq_gov_smartdroid);
 }
 
 
 MODULE_AUTHOR("NewWorld <cae11cae@naver.com>");
-MODULE_DESCRIPTION("'cpufreq_NewWorld' - A NewWorld governor based on conservative");
+MODULE_DESCRIPTION("'cpufreq_smartdroid' - A smartdroid governor based on conservative");
 MODULE_LICENSE("GPL");
 
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_NEWWORLD
+#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_smartdroid
 fs_initcall(cpufreq_gov_dbs_init);
 #else
 module_init(cpufreq_gov_dbs_init);

@@ -373,7 +373,8 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
 		   -fno-delete-null-pointer-checks \
-		    $(call cc-disable-warning,maybe-uninitialized,)
+		    $(call cc-disable-warning,maybe-uninitialized,) \
+				$(call cc-disable-warning,sizeof-pointer-memaccess,)
 #// 20120105, albatros, imei 주소값의 공용으로 사용을 위해서
 ifeq ($(OEM_PRODUCT_MANUFACTURER),PANTECH)
 LINUXINCLUDE += -I$(srctree)/../vendor/pantech/frameworks/sky_rawdata
