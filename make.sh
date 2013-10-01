@@ -20,10 +20,20 @@ fi
 
 if [ "$1" = "" ]; then
   make CONFIG_NO_ERROR_ON_MISMATCH=y CONFIG_DEBUG_SECTION_MISMATCH=y -j16 O=$ODIR ARCH=arm CROSS_COMPILE=$TOOLCHAIN zImage
+elif [ "$1" == "package" ]; then
+  ./make.sh modules
+  cd ..
+  mv -f cfg80211.ko out/ef52/NewWorld-aroma/cfg80211.ko
+  mv -f wlan.ko out/ef52/NewWorld-aroma/wlan.ko
+  mv -f WCNSS_cfg.dat out/ef52/NewWorld-aroma/WCNSS_cfg.dat
+  cd out/ef52/NewWorld-aroma/
+  zip -r "package.zip" "META-INF" "tool" "zImage" *.*
+  mv -f package.zip ../package.zip
+  echo "The Module Package is builded"
 elif [ "$1" == "modules" ]; then
   make CONFIG_NO_ERROR_ON_MISMATCH=y CONFIG_DEBUG_SECTION_MISMATCH=y -j16 O=$ODIR ARCH=arm CROSS_COMPILE=$TOOLCHAIN modules
   cd ..
-  ./getmod.sh
+  ./irongetmod.sh
 else
   make -j16 O=$ODIR ARCH=arm CROSS_COMPILE=$TOOLCHAIN $1 $2 $3
 fi

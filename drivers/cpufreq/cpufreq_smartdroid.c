@@ -96,7 +96,6 @@ static struct dbs_tuners {
 	unsigned int down_threshold;
 	unsigned int ignore_nice;
 	unsigned int freq_step;
-	unsigned int intelli_plug_on;
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
 	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
@@ -363,23 +362,35 @@ static struct early_suspend cpufreq_smartdroid_early_suspend_info = {
 * And if cpu wants to decrease freq, varaibles are changed slow mode slowly
 */
 static int count = -1;
+static int upflag = 0;
+static int downflag = 0;
 static void update_gov_tunable(int flag)
 {
-	if(count == 10 || count == -1)
+	if(count == 5 || count == -1)
 		return;
 	if(flag)	//Down
 	{
-		dbs_tuners_ins.down_threshold--;
-		dbs_tuners_ins.up_threshold--;
-		dbs_tuners_ins.freq_step--;
+		if(upflag != 3){
+		upflag++;
+		return;
+		}
+		dbs_tuners_ins.down_threshold =- 2;
+		dbs_tuners_ins.up_threshold =- 2;
+		dbs_tuners_ins.freq_step =- 2;
 		count--;
+		upflag = 0;
 	}
 	else
 	{
-		dbs_tuners_ins.down_threshold++;
-		dbs_tuners_ins.up_threshold++;
-		dbs_tuners_ins.freq_step++;
+		if(downflag != 2){
+		downflag++;
+		return;
+		}
+		dbs_tuners_ins.down_threshold =+ 2;
+		dbs_tuners_ins.up_threshold =+ 2;
+		dbs_tuners_ins.freq_step =+ 2;
 		count++;
+		downflag = 0;
 	}
 }
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
@@ -502,6 +513,8 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 				CPUFREQ_RELATION_H);
 		return;
 	}
+	//I think they are use as at up down, But WHO KNOWS...
+	update_gov_tunable(1);
 }
 
 
@@ -655,7 +668,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 	return 0;
 }
 
-#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_smartdroid
+#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_SMARTDROID
 static
 #endif
 struct cpufreq_governor cpufreq_gov_smartdroid = {
@@ -683,7 +696,7 @@ MODULE_AUTHOR("NewWorld <cae11cae@naver.com>");
 MODULE_DESCRIPTION("'cpufreq_smartdroid' - A smartdroid governor based on conservative");
 MODULE_LICENSE("GPL");
 
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_smartdroid
+#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_SMARTDROID
 fs_initcall(cpufreq_gov_dbs_init);
 #else
 module_init(cpufreq_gov_dbs_init);
