@@ -35,7 +35,7 @@
 #define DEF_FREQUENCY_UP_THRESHOLD	(95)
 #define DEF_FREQUENCY_DOWN_THRESHOLD (35)
 
-#define DEF_MODE_FREQ_STEP 				(15)
+#define DEF_MODE_FREQ_STEP 				(5)
 /*
  * The polling frequency of this governor depends on the capability of
  * the processor. Default polling frequency is 1000 times the transition
@@ -188,10 +188,7 @@ static ssize_t show_##file_name						\
 }
 show_one(sampling_rate, sampling_rate);
 show_one(sampling_down_factor, sampling_down_factor);
-show_one(up_threshold, up_threshold);
-show_one(down_threshold, down_threshold);
 show_one(ignore_nice_load, ignore_nice);
-show_one(freq_step, freq_step);
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 					  struct attribute *b,
@@ -219,37 +216,6 @@ static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b,
 		return -EINVAL;
 
 	dbs_tuners_ins.sampling_rate = max(input, min_sampling_rate);
-	return count;
-}
-
-static ssize_t store_up_threshold(struct kobject *a, struct attribute *b,
-				  const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	if (ret != 1 || input > 100 ||
-			input <= dbs_tuners_ins.down_threshold)
-		return -EINVAL;
-
-	dbs_tuners_ins.up_threshold = input;
-	return count;
-}
-
-static ssize_t store_down_threshold(struct kobject *a, struct attribute *b,
-				    const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	/* cannot be lower than 11 otherwise freq will not fall */
-	if (ret != 1 || input < 11 || input > 100 ||
-			input >= dbs_tuners_ins.up_threshold)
-		return -EINVAL;
-
-	dbs_tuners_ins.down_threshold = input;
 	return count;
 }
 
@@ -285,40 +251,15 @@ static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 	return count;
 }
 
-static ssize_t store_freq_step(struct kobject *a, struct attribute *b,
-			       const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	if (ret != 1)
-		return -EINVAL;
-
-	if (input > 100)
-		input = 100;
-
-	/* no need to test here if freq_step is zero as the user might actually
-	 * want this, they would be crazy though :) */
-	dbs_tuners_ins.freq_step = input;
-	return count;
-}
-
 define_one_global_rw(sampling_rate);
 define_one_global_rw(sampling_down_factor);
-define_one_global_rw(up_threshold);
-define_one_global_rw(down_threshold);
 define_one_global_rw(ignore_nice_load);
-define_one_global_rw(freq_step);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
 	&sampling_rate.attr,
 	&sampling_down_factor.attr,
-	&up_threshold.attr,
-	&down_threshold.attr,
 	&ignore_nice_load.attr,
-	&freq_step.attr,
 	NULL
 };
 
@@ -358,9 +299,7 @@ static struct early_suspend cpufreq_smartdroid_early_suspend_info = {
 	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1,
 };
 #endif
-/* tweak : if cpu wants to increase freq, varaibles are changed fast mode slowly
-* And if cpu wants to decrease freq, varaibles are changed slow mode slowly
-*/
+// important. Tweak function
 static int count = -1;
 static int upflag = 0;
 static int downflag = 0;
@@ -370,25 +309,24 @@ static void update_gov_tunable(int flag)
 		return;
 	if(flag)	//Down
 	{
-		if(upflag != 3){
+		if(upflag != 1){
 		upflag++;
 		return;
 		}
-		dbs_tuners_ins.down_threshold =- 2;
-		dbs_tuners_ins.up_threshold =- 2;
-		dbs_tuners_ins.freq_step =- 2;
+		dbs_tuners_ins.down_threshold =- 3;
+		dbs_tuners_ins.up_threshold =- 3;
 		count--;
 		upflag = 0;
+		downflag = 0;
 	}
 	else
 	{
-		if(downflag != 2){
+		if(downflag != 3){
 		downflag++;
 		return;
 		}
-		dbs_tuners_ins.down_threshold =+ 2;
-		dbs_tuners_ins.up_threshold =+ 2;
-		dbs_tuners_ins.freq_step =+ 2;
+		dbs_tuners_ins.down_threshold =+ 3;
+		dbs_tuners_ins.up_threshold =+ 3;
 		count++;
 		downflag = 0;
 	}
