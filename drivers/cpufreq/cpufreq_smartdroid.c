@@ -364,8 +364,8 @@ static ssize_t store_slow_mode_count(struct kobject *a, struct attribute *b,
 		return -EINVAL;
 
 	dbs_tuners_ins.slow_mode_count = input;
-	upcount = 0;
-	downcount = 0;
+	upcounter = 0;
+	downcounter = 0;
 	return count;
 }
 static ssize_t store_fast_mode_count(struct kobject *a, struct attribute *b,
@@ -378,8 +378,8 @@ static ssize_t store_fast_mode_count(struct kobject *a, struct attribute *b,
 		return -EINVAL;
 
 	dbs_tuners_ins.fast_mode_count = input;
-	upcount = 0;
-	downcount = 0;
+	upcounter = 0;
+	downcounter = 0;
 	return count;
 }
 define_one_global_rw(sampling_rate);
