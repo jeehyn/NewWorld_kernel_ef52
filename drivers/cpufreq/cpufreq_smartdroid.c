@@ -1,6 +1,6 @@
 /*
 *  drivers/cpufreq/cpufreq_smartdroid.c
-*  Patched & tweaked: NewWorld(Bug report : cae11cae@naver.com)
+*  Auther : NewWorld(cae11cae@naver.com)
 *  based on governor Conservative, Authers :
 *
 *  Copyright (C)  2001 Russell King
@@ -32,8 +32,10 @@
  * dbs is used in this file as a shortform for demandbased switching
  * It helps to keep variable names smaller, simpler
  */
-#define DEF_FREQUENCY_UP_THRESHOLD	(95)
-#define DEF_FREQUENCY_DOWN_THRESHOLD (35)
+#define FAST_MODE_FREQUENCY_UP_THRESHOLD	(80)
+#define FAST_MODE_FREQUENCY_DOWN_THRESHOLD	(20)
+#define SLOW_MODE_FREQUENCY_UP_THRESHOLD	(95)
+#define SLOW_MODE_FREQUENCY_DOWN_THRESHOLD (35)
 
 #define DEF_MODE_FREQ_STEP 				(5)
 /*
@@ -46,7 +48,7 @@
  * this governor will not work.
  * All times here are in uS.
  */
-#define MIN_SAMPLING_RATE_RATIO			(1)
+#define MIN_SAMPLING_RATE_RATIO			(2)
 
 static unsigned int min_sampling_rate;
 
@@ -60,7 +62,14 @@ static unsigned int min_sampling_rate;
 static unsigned long stored_sampling_rate;
 static unsigned long stored_up_threshold;
 static unsigned long stored_down_threshold;
+static unsigned int is_early_suspend = 0;
 #endif
+#define DEF_UPCOUNT		(5)
+#define DEF_DOWNCOUNT	(4)
+
+static unsigned int upcounter = 0;
+static unsigned int downcounter = 0;
+
 static void do_dbs_timer(struct work_struct *work);
 
 struct cpu_dbs_info_s {
@@ -96,12 +105,24 @@ static struct dbs_tuners {
 	unsigned int down_threshold;
 	unsigned int ignore_nice;
 	unsigned int freq_step;
+	unsigned int fast_mode_up_threshold;
+	unsigned int fast_mode_down_threshold;
+	unsigned int slow_mode_up_threshold;
+	unsigned int slow_mode_down_threshold;
+	unsigned int fast_mode_count;
+	unsigned int slow_mode_count;
 } dbs_tuners_ins = {
-	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
-	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
+	.up_threshold = SLOW_MODE_FREQUENCY_UP_THRESHOLD,
+	.down_threshold = SLOW_MODE_FREQUENCY_DOWN_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
 	.freq_step = DEF_MODE_FREQ_STEP,
+	.fast_mode_up_threshold = FAST_MODE_FREQUENCY_UP_THRESHOLD,
+	.fast_mode_down_threshold = FAST_MODE_FREQUENCY_DOWN_THRESHOLD,
+	.fast_mode_count = DEF_UPCOUNT,
+	.slow_mode_up_threshold = SLOW_MODE_FREQUENCY_UP_THRESHOLD,
+	.slow_mode_down_threshold = SLOW_MODE_FREQUENCY_DOWN_THRESHOLD,
+	.slow_mode_count = DEF_DOWNCOUNT,
 };
 static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
 {
@@ -189,6 +210,13 @@ static ssize_t show_##file_name						\
 show_one(sampling_rate, sampling_rate);
 show_one(sampling_down_factor, sampling_down_factor);
 show_one(ignore_nice_load, ignore_nice);
+show_one(freq_step, freq_step);
+show_one(fast_mode_up_threshold, fast_mode_up_threshold);
+show_one(fast_mode_down_threshold, fast_mode_down_threshold);
+show_one(fast_mode_count, fast_mode_count);
+show_one(slow_mode_up_threshold, slow_mode_up_threshold);
+show_one(slow_mode_down_threshold, slow_mode_down_threshold);
+show_one(slow_mode_count, slow_mode_count);
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 					  struct attribute *b,
@@ -250,16 +278,133 @@ static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 	}
 	return count;
 }
+static ssize_t store_freq_step(struct kobject *a, struct attribute *b,
+			       const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
 
+	if (ret != 1)
+		return -EINVAL;
+
+	if (input > 100)
+		input = 100;
+
+	/* no need to test here if freq_step is zero as the user might actually
+	 * want this, they would be crazy though :) */
+	dbs_tuners_ins.freq_step = input;
+	return count;
+}
+static ssize_t store_fast_mode_up_threshold(struct kobject *a, struct attribute *b,
+				  const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	if (ret != 1 || input > 100 ||
+			input <= dbs_tuners_ins.fast_mode_down_threshold)
+		return -EINVAL;
+
+	dbs_tuners_ins.fast_mode_up_threshold = input;
+	return count;
+}
+static ssize_t store_fast_mode_down_threshold(struct kobject *a, struct attribute *b,
+				    const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	/* cannot be lower than 11 otherwise freq will not fall */
+	if (ret != 1 || input < 11 || input > 100 ||
+			input >= dbs_tuners_ins.fast_mode_up_threshold)
+		return -EINVAL;
+
+	dbs_tuners_ins.fast_mode_down_threshold = input;
+	return count;
+}
+static ssize_t store_slow_mode_up_threshold(struct kobject *a, struct attribute *b,
+				  const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	if (ret != 1 || input > 100 ||
+			input <= dbs_tuners_ins.slow_mode_down_threshold)
+		return -EINVAL;
+
+	dbs_tuners_ins.slow_mode_up_threshold = input;
+	return count;
+}
+static ssize_t store_slow_mode_down_threshold(struct kobject *a, struct attribute *b,
+				    const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	/* cannot be lower than 11 otherwise freq will not fall */
+	if (ret != 1 || input < 11 || input > 100 ||
+			input >= dbs_tuners_ins.slow_mode_up_threshold)
+		return -EINVAL;
+
+	dbs_tuners_ins.slow_mode_down_threshold = input;
+	return count;
+}
+static ssize_t store_slow_mode_count(struct kobject *a, struct attribute *b,
+				    const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	if(input < 1 || input >= 100)
+		return -EINVAL;
+
+	dbs_tuners_ins.slow_mode_count = input;
+	upcount = 0;
+	downcount = 0;
+	return count;
+}
+static ssize_t store_fast_mode_count(struct kobject *a, struct attribute *b,
+				    const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	if(input < 1 || input >= 100)
+		return -EINVAL;
+
+	dbs_tuners_ins.fast_mode_count = input;
+	upcount = 0;
+	downcount = 0;
+	return count;
+}
 define_one_global_rw(sampling_rate);
 define_one_global_rw(sampling_down_factor);
 define_one_global_rw(ignore_nice_load);
+define_one_global_rw(freq_step);
+define_one_global_rw(fast_mode_up_threshold);
+define_one_global_rw(fast_mode_down_threshold);
+define_one_global_rw(fast_mode_count);
+define_one_global_rw(slow_mode_up_threshold);
+define_one_global_rw(slow_mode_down_threshold);
+define_one_global_rw(slow_mode_count);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
 	&sampling_rate.attr,
 	&sampling_down_factor.attr,
 	&ignore_nice_load.attr,
+	&freq_step.attr,
+	&fast_mode_up_threshold.attr,
+	&fast_mode_down_threshold.attr,
+	&fast_mode_count.attr,
+	&slow_mode_up_threshold.attr,
+	&slow_mode_down_threshold.attr,
+	&slow_mode_count.attr,
 	NULL
 };
 
@@ -275,6 +420,7 @@ static struct attribute_group dbs_attr_group = {
 static void cpufreq_smartdroid_early_suspend(struct early_suspend *h)
 {
 	mutex_lock(&dbs_mutex);
+	is_early_suspend = 1;
 	stored_sampling_rate = dbs_tuners_ins.sampling_rate;
 	dbs_tuners_ins.sampling_rate = stored_sampling_rate * 6;
 	stored_up_threshold = dbs_tuners_ins.up_threshold;
@@ -287,6 +433,7 @@ static void cpufreq_smartdroid_early_suspend(struct early_suspend *h)
 static void cpufreq_smartdroid_late_resume(struct early_suspend *h)
 {
 	mutex_lock(&dbs_mutex);
+	is_early_suspend = 0;
 	dbs_tuners_ins.sampling_rate = stored_sampling_rate;
 	dbs_tuners_ins.up_threshold = stored_up_threshold;
 	dbs_tuners_ins.down_threshold = stored_down_threshold;
@@ -299,36 +446,19 @@ static struct early_suspend cpufreq_smartdroid_early_suspend_info = {
 	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1,
 };
 #endif
-// important. Tweak function
-static int count = -1;
-static int upflag = 0;
-static int downflag = 0;
 static void update_gov_tunable(int flag)
 {
-	if(count == 5 || count == -1)
-		return;
-	if(flag)	//Down
+	if(is_early_suspend == 1)
+			return;
+	if(flag)	//Fast
 	{
-		if(upflag != 1){
-		upflag++;
-		return;
-		}
-		dbs_tuners_ins.down_threshold =- 3;
-		dbs_tuners_ins.up_threshold =- 3;
-		count--;
-		upflag = 0;
-		downflag = 0;
+		dbs_tuners_ins.down_threshold = 23;
+		dbs_tuners_ins.up_threshold = 80;
 	}
 	else
 	{
-		if(downflag != 3){
-		downflag++;
-		return;
-		}
-		dbs_tuners_ins.down_threshold =+ 3;
-		dbs_tuners_ins.up_threshold =+ 3;
-		count++;
-		downflag = 0;
+		dbs_tuners_ins.down_threshold = 35;
+		dbs_tuners_ins.up_threshold = 95;
 	}
 }
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
@@ -406,7 +536,14 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 	/* Check for frequency increase */
 	if (max_load > dbs_tuners_ins.up_threshold) {
-		update_gov_tunable(0);
+		upcounter++;
+		/* check if counter is max */
+		if (upcounter == dbs_tuners_ins.fast_mode_count){
+			update_gov_tunable(0);
+			upcounter = 0;
+			if(downcounter != 0)
+				downcounter--;
+		}
 		this_dbs_info->down_skip = 0;
 
 		/* if we are already at full speed then break out early */
@@ -434,7 +571,15 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 * policy. To be safe, we focus 10 points under the threshold.
 	 */
 	if (max_load < (dbs_tuners_ins.down_threshold - 10)) {
-		update_gov_tunable(1);
+		downcounter++;
+		/* check if counter is 5 */
+		if (downcounter == dbs_tuners_ins.slow_mode_count){
+			update_gov_tunable(1);
+			downcounter = 0;
+
+			if(upcounter != 0)
+				upcounter--;
+		}
 		freq_target = (dbs_tuners_ins.freq_step * policy->max) / 100;
 
 		this_dbs_info->requested_freq -= freq_target;
@@ -451,8 +596,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 				CPUFREQ_RELATION_H);
 		return;
 	}
-	//I think they are use as at up down, But WHO KNOWS...
-	update_gov_tunable(1);
 }
 
 
