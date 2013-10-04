@@ -1708,6 +1708,24 @@ config GPU_OVERCLOCK
 	default n
 	help
 	  APQ8064 GPU overclocking 
+config LOW_CPUCLOCKS
+	bool "LOW CPU clock support"
+	default y
+	help
+		Allow very low cpu clock
+config CPU_OVERCLOCK
+	bool "CPU Overclock to 1.89"
+	default n
+	help
+		if not boot, check this
+
+if CPU_OVERCLOCK != n
+config CPU_OVERCLOCK_ULTIMATE
+	bool "CPU Overclock to 2.1"
+	default n
+	help
+		if not boot, check this
+endif #ULTRA CPU OVERCLOCK
 
 config CPU_VOLTAGE_TABLE
 	bool "Enable CPU Voltage Table via sysfs for adjustements"
