@@ -32,8 +32,8 @@
  * dbs is used in this file as a shortform for demandbased switching
  * It helps to keep variable names smaller, simpler
  */
-#define FAST_MODE_FREQUENCY_UP_THRESHOLD	(80)
-#define FAST_MODE_FREQUENCY_DOWN_THRESHOLD	(20)
+#define FAST_MODE_FREQUENCY_UP_THRESHOLD	(83)
+#define FAST_MODE_FREQUENCY_DOWN_THRESHOLD	(23)
 #define SLOW_MODE_FREQUENCY_UP_THRESHOLD	(95)
 #define SLOW_MODE_FREQUENCY_DOWN_THRESHOLD (35)
 
@@ -62,10 +62,10 @@ static unsigned int min_sampling_rate;
 static unsigned long stored_sampling_rate;
 static unsigned long stored_up_threshold;
 static unsigned long stored_down_threshold;
-static unsigned int is_early_suspend = 0;
 #endif
+static unsigned int is_early_suspend = 0;
 #define DEF_UPCOUNT		(5)
-#define DEF_DOWNCOUNT	(4)
+#define DEF_DOWNCOUNT	(6)
 
 static unsigned int upcounter = 0;
 static unsigned int downcounter = 0;
@@ -452,13 +452,13 @@ static void update_gov_tunable(int flag)
 			return;
 	if(flag)	//Fast
 	{
-		dbs_tuners_ins.down_threshold = 23;
-		dbs_tuners_ins.up_threshold = 80;
+		dbs_tuners_ins.down_threshold = dbs_tuners_ins.fast_mode_down_threshold;
+		dbs_tuners_ins.up_threshold = dbs_tuners_ins.up_threshold;
 	}
-	else
+	else	//slow
 	{
-		dbs_tuners_ins.down_threshold = 35;
-		dbs_tuners_ins.up_threshold = 95;
+		dbs_tuners_ins.down_threshold = dbs_tuners_ins.slow_mode_down_threshold;
+		dbs_tuners_ins.up_threshold = dbs_tuners_ins.slow_mode_up_threshold;
 	}
 }
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
