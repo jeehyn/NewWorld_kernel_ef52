@@ -314,7 +314,7 @@ static ssize_t store_fast_mode_up_persent(struct kobject *a, struct attribute *b
 	
 	compare = is_correct_persentage(ret, input);
 	if(compare == 1)
-		return -EINVAL;
+		return -EINVAL
 	
 	else if (compare == 2)
 		input = 100;
@@ -331,7 +331,7 @@ static ssize_t store_fast_mode_down_persent(struct kobject *a, struct attribute 
 	
 	compare = is_correct_persentage(ret, input);
 	if(compare == 1)
-		return -EINVAL;
+		return -EINVAL
 	
 	else if (compare == 2)
 		input = 100;
@@ -347,7 +347,7 @@ static ssize_t store_slow_mode_up_persent(struct kobject *a, struct attribute *b
 	
 	compare = is_correct_persentage(ret, input);
 	if(compare == 1)
-		return -EINVAL;
+		return -EINVAL
 	
 	else if (compare == 2)
 		input = 100;
@@ -363,7 +363,7 @@ static ssize_t store_slow_mode_down_persent(struct kobject *a, struct attribute 
 	
 	compare = is_correct_persentage(ret, input);
 	if(compare == 1)
-		return -EINVAL;
+		return -EINVAL
 	
 	else if (compare == 2)
 		input = 100;

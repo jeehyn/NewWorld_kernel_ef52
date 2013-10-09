@@ -2,10 +2,10 @@
 
 ODIR=../build_ef52k
 image_filename="$ODIR/arch/arm/boot/zImage"
-TOOLCHAIN=../linaro/bin/arm-eabi-
+TOOLCHAIN=../linaro-4.8/bin/arm-eabi-
 
 export ARCH=arm
-export CROSS_COMPILE=../linaro/bin/arm-eabi-
+export CROSS_COMPILE=../linaro-4.8/bin/arm-eabi-
 KERNEL_DEFCONFIG=oc_qsound_defconfig
 
 if [ ! -d $ODIR ]; then
