@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ODIR=../build_ef52k_cm
+ODIR=../build_ef52k
 image_filename="$ODIR/arch/arm/boot/zImage"
 TOOLCHAIN=../linaro/bin/arm-eabi-
 
