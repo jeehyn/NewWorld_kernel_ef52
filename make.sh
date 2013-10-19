@@ -29,13 +29,13 @@ fi
 	./make.sh
 echo "zImage setting is $2..."
 	./zimage.sh
-	mv -f ../zImage ../out/ef52/NewWorld-aroma/zImage/$2
+	mv -f ../zImage ../out/ef52/zImage/$2
 	./make.sh modules
   cd ..
-  mv -f cfg80211.ko out/ef52/NewWorld-aroma/cfg80211.ko
-  mv -f wlan.ko out/ef52/NewWorld-aroma/wlan.ko
-  mv -f WCNSS_cfg.dat out/ef52/NewWorld-aroma/WCNSS_cfg.dat
-  cd out/ef52/NewWorld-aroma/
+  mv -f cfg80211.ko out/ef52/cfg80211.ko
+  mv -f wlan.ko out/ef52/wlan.ko
+  mv -f WCNSS_cfg.dat out/ef52/WCNSS_cfg.dat
+  cd out/ef52/
   zip -r "package.zip" "META-INF" "tool" "zImage" *.*
   mv -f package.zip ../package.zip
 echo "Success :D"
