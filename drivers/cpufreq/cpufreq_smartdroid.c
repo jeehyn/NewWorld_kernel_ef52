@@ -65,9 +65,11 @@ static unsigned int min_sampling_rate;
 static unsigned long stored_sampling_rate;
 static unsigned long stored_up_threshold;
 static unsigned long stored_down_threshold;
+static unsigned long stored_up_persent;
+static unsigned long stored_down_persent;
 #endif
 static unsigned int is_early_suspend = 0;
-#define DEF_UPCOUNT		(10)
+#define DEF_UPCOUNT		(20)
 #define DEF_DOWNCOUNT		(4)
 
 static unsigned int upcounter = 0;
@@ -494,37 +496,6 @@ static struct attribute_group dbs_attr_group = {
 
 
 /************************** sysfs end ************************/
-//early suspend tweak :D
-#ifdef CONFIG_EARLYSUSPEND
-static void cpufreq_smartdroid_early_suspend(struct early_suspend *h)
-{
-	mutex_lock(&dbs_mutex);
-	is_early_suspend = 1;
-	stored_sampling_rate = dbs_tuners_ins.sampling_rate;
-	dbs_tuners_ins.sampling_rate = stored_sampling_rate * 6;
-	stored_up_threshold = dbs_tuners_ins.up_threshold;
-	stored_down_threshold = dbs_tuners_ins.down_threshold;
-	dbs_tuners_ins.down_threshold = 70;
-	dbs_tuners_ins.up_threshold = 99;
-	mutex_unlock(&dbs_mutex);
-}
-
-static void cpufreq_smartdroid_late_resume(struct early_suspend *h)
-{
-	mutex_lock(&dbs_mutex);
-	is_early_suspend = 0;
-	dbs_tuners_ins.sampling_rate = stored_sampling_rate;
-	dbs_tuners_ins.up_threshold = stored_up_threshold;
-	dbs_tuners_ins.down_threshold = stored_down_threshold;
-	mutex_unlock(&dbs_mutex);
-}
-
-static struct early_suspend cpufreq_smartdroid_early_suspend_info = {
-	.suspend = cpufreq_smartdroid_early_suspend,
-	.resume = cpufreq_smartdroid_late_resume,
-	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1,
-};
-#endif
 static void update_gov_tunable(int flag)
 {
 	if(is_early_suspend == 1)
@@ -544,6 +515,41 @@ static void update_gov_tunable(int flag)
 		dbs_tuners_ins.down_persent = dbs_tuners_ins.slow_mode_down_persent;
 	}
 }
+//early suspend
+#ifdef CONFIG_EARLYSUSPEND
+static void cpufreq_smartdroid_early_suspend(struct early_suspend *h)
+{
+	mutex_lock(&dbs_mutex);
+	stored_sampling_rate = dbs_tuners_ins.sampling_rate;
+	stored_up_threshold = dbs_tuners_ins.up_threshold;
+	stored_down_threshold = dbs_tuners_ins.down_threshold;
+	stored_up_persent = dbs_tuners_ins.up_persent;
+	stored_down_persent = dbs_tuners_ins.down_persent;
+	update_gov_tunable(0);
+	is_early_suspend = 1;
+	dbs_tuners_ins.sampling_rate = stored_sampling_rate * 6;
+	mutex_unlock(&dbs_mutex);
+}
+
+static void cpufreq_smartdroid_late_resume(struct early_suspend *h)
+{
+	mutex_lock(&dbs_mutex);	
+	dbs_tuners_ins.sampling_rate = stored_sampling_rate;
+	dbs_tuners_ins.up_threshold = stored_up_threshold;
+	dbs_tuners_ins.down_threshold = stored_down_threshold;
+	dbs_tuners_ins.up_persent = stored_up_persent;
+	dbs_tuners_ins.down_persent = stored_down_persent;
+	is_early_suspend = 0;
+	mutex_unlock(&dbs_mutex);
+}
+
+static struct early_suspend cpufreq_smartdroid_early_suspend_info = {
+	.suspend = cpufreq_smartdroid_early_suspend,
+	.resume = cpufreq_smartdroid_late_resume,
+	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1,
+};
+#endif
+
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
 	unsigned int load = 0;
@@ -654,7 +660,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 */
 	if (max_load < (dbs_tuners_ins.down_threshold - 10)) {
 		downcounter++;
-		/* check if counter is 5 */
+		/* check counter */
 		if (downcounter == dbs_tuners_ins.slow_mode_count){
 			update_gov_tunable(1);
 			downcounter = 0;
