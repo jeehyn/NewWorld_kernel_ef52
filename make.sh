@@ -20,6 +20,26 @@ fi
 
 if [ "$1" = "" ]; then
   make CONFIG_NO_ERROR_ON_MISMATCH=y CONFIG_DEBUG_SECTION_MISMATCH=y -j32 O=$ODIR ARCH=arm CROSS_COMPILE=$TOOLCHAIN zImage
+
+elif [ "$1" == "curzip" ]; then
+if [ "$2" == "" ]; then
+echo "Error : You must enter zImage's name"
+echo "Usage : ./make.sh curzip [zImage name]"
+exit
+fi
+echo "zImage setting is $2..."
+	./zimage.sh	
+	cd ..
+	./irongetmod.sh
+mv -f zImage out/ef52/zImage/$2
+  mv -f cfg80211.ko out/ef52/cfg80211.ko
+  mv -f wlan.ko out/ef52/wlan.ko
+  mv -f WCNSS_cfg.dat out/ef52/WCNSS_cfg.dat
+  cd out/ef52/
+  zip -r "package.zip" "META-INF" "tool" "zImage" *.*
+  mv -f ../package.zip ../../../shared/package.zip
+echo "Success :D"
+
 elif [ "$1" == "fullbuild" ]; then
 if [ "$2" == "" ]; then
 echo "Error : You must enter zImage's name"
@@ -27,18 +47,8 @@ echo "Usage : ./make.sh fullbuild [zImage name]"
 exit
 fi
 	./make.sh
-echo "zImage setting is $2..."
-	./zimage.sh
-	mv -f ../zImage ../out/ef52/zImage/$2
 	./make.sh modules
-  cd ..
-  mv -f cfg80211.ko out/ef52/cfg80211.ko
-  mv -f wlan.ko out/ef52/wlan.ko
-  mv -f WCNSS_cfg.dat out/ef52/WCNSS_cfg.dat
-  cd out/ef52/
-  zip -r "package.zip" "META-INF" "tool" "zImage" *.*
-  mv -f package.zip ../package.zip
-echo "Success :D"
+	./make.sh curzip $2
 elif [ "$1" == "modules" ]; then
   make CONFIG_NO_ERROR_ON_MISMATCH=y CONFIG_DEBUG_SECTION_MISMATCH=y -j16 O=$ODIR ARCH=arm CROSS_COMPILE=$TOOLCHAIN modules
   cd ..
