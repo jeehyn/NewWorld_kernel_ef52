@@ -1,5 +1,5 @@
 /*
-*  drivers/cpufreq/cpufreq_smartdroid.c
+*  drivers/cpufreq/cpufreq_smartactive.c
 *  Auther : NewWorld(cae11cae@naver.com)
 *  based on governor Conservative, Authers :
 *
@@ -35,11 +35,11 @@
 #define FAST_MODE_FREQUENCY_UP_THRESHOLD	(83)
 #define FAST_MODE_FREQUENCY_DOWN_THRESHOLD	(23)
 #define FAST_MODE_UP_PERSENT			(10)
-#define FAST_MODE_DOWN_PERSENT			(5)
+#define FAST_MODE_WAKEUP_FREQ			(486000)
 #define SLOW_MODE_FREQUENCY_UP_THRESHOLD	(95)
 #define SLOW_MODE_FREQUENCY_DOWN_THRESHOLD (35)
 #define SLOW_MODE_UP_PERSENT			(5)
-#define SLOW_MODE_DOWN_PERSENT			(10)
+#define SLOW_MODE_WAKEUP_FREQ			(162000)
 
 /*
  * The polling frequency of this governor depends on the capability of
@@ -66,7 +66,7 @@ static unsigned long stored_sampling_rate;
 static unsigned long stored_up_threshold;
 static unsigned long stored_down_threshold;
 static unsigned long stored_up_persent;
-static unsigned long stored_down_persent;
+static unsigned long stored_wakeup_freq;
 #endif
 static unsigned int is_early_suspend = 0;
 #define DEF_UPCOUNT		(20)
@@ -110,7 +110,7 @@ static struct dbs_tuners {
 	unsigned int down_threshold;
 	unsigned int ignore_nice;
 	unsigned int up_persent;
-	unsigned int down_persent;
+	unsigned int wakeup_freq;
 	unsigned int fast_mode_up_threshold;
 	unsigned int fast_mode_down_threshold;
 	unsigned int slow_mode_up_threshold;
@@ -118,26 +118,25 @@ static struct dbs_tuners {
 	unsigned int fast_mode_count;
 	unsigned int slow_mode_count;
 	unsigned int fast_mode_up_persent;
-	unsigned int fast_mode_down_persent;
+	unsigned int fast_mode_wakeup_freq;
 	unsigned int slow_mode_up_persent;
-	unsigned int slow_mode_down_persent;
 } dbs_tuners_ins = {
 	.up_threshold = SLOW_MODE_FREQUENCY_UP_THRESHOLD,
 	.down_threshold = SLOW_MODE_FREQUENCY_DOWN_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
 	.up_persent = SLOW_MODE_UP_PERSENT,
-	.down_persent = SLOW_MODE_DOWN_PERSENT,
+	.wakeup_freq = SLOW_MODE_WAKEUP_FREQ,
 	.fast_mode_up_threshold = FAST_MODE_FREQUENCY_UP_THRESHOLD,
 	.fast_mode_down_threshold = FAST_MODE_FREQUENCY_DOWN_THRESHOLD,
 	.fast_mode_count = DEF_UPCOUNT,
 	.fast_mode_up_persent = FAST_MODE_UP_PERSENT,
-	.fast_mode_down_persent = FAST_MODE_DOWN_PERSENT,
+	.fast_mode_wakeup_freq = FAST_MODE_WAKEUP_FREQ,
 	.slow_mode_up_threshold = SLOW_MODE_FREQUENCY_UP_THRESHOLD,
 	.slow_mode_down_threshold = SLOW_MODE_FREQUENCY_DOWN_THRESHOLD,
 	.slow_mode_count = DEF_DOWNCOUNT,
 	.slow_mode_up_persent = SLOW_MODE_UP_PERSENT,
-	.slow_mode_down_persent = SLOW_MODE_DOWN_PERSENT,
+	.slow_mode_wakeup_freq = SLOW_MODE_WAKEUP_FREQ,
 };
 static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
 {
@@ -215,7 +214,7 @@ static ssize_t show_sampling_rate_min(struct kobject *kobj,
 
 define_one_global_ro(sampling_rate_min);
 
-/* cpufreq_smartdroid Governor Tunables */
+/* cpufreq_smartactive Governor Tunables */
 #define show_one(file_name, object)					\
 static ssize_t show_##file_name						\
 (struct kobject *kobj, struct attribute *attr, char *buf)		\
@@ -232,9 +231,9 @@ show_one(slow_mode_up_threshold, slow_mode_up_threshold);
 show_one(slow_mode_down_threshold, slow_mode_down_threshold);
 show_one(slow_mode_count, slow_mode_count);
 show_one(fast_mode_up_persent, fast_mode_up_persent);
-show_one(fast_mode_down_persent, fast_mode_down_persent);
+show_one(fast_mode_wakeup_freq, fast_mode_wakeup_freq);
 show_one(slow_mode_up_persent, slow_mode_up_persent);
-show_one(slow_mode_down_persent, slow_mode_down_persent);
+show_one(slow_mode_wakeup_freq, slow_mode_wakeup_freq);
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 					  struct attribute *b,
@@ -324,22 +323,6 @@ static ssize_t store_fast_mode_up_persent(struct kobject *a, struct attribute *b
 	dbs_tuners_ins.fast_mode_up_persent = input;
 	return count;
 }
-static ssize_t store_fast_mode_down_persent(struct kobject *a, struct attribute *b, const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	int compare;
-	ret = sscanf(buf, "%u", &input);
-	
-	compare = is_correct_persentage(ret, input);
-	if(compare == 1)
-		return -EINVAL;
-	
-	else if (compare == 2)
-		input = 100;
-	dbs_tuners_ins.fast_mode_down_persent = input;
-	return count;
-}
 static ssize_t store_slow_mode_up_persent(struct kobject *a, struct attribute *b, const char *buf, size_t count)
 {
 	unsigned int input;
@@ -354,22 +337,6 @@ static ssize_t store_slow_mode_up_persent(struct kobject *a, struct attribute *b
 	else if (compare == 2)
 		input = 100;
 	dbs_tuners_ins.slow_mode_up_persent = input;
-	return count;
-}
-static ssize_t store_slow_mode_down_persent(struct kobject *a, struct attribute *b, const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	int compare;
-	ret = sscanf(buf, "%u", &input);
-	
-	compare = is_correct_persentage(ret, input);
-	if(compare == 1)
-		return -EINVAL;
-	
-	else if (compare == 2)
-		input = 100;
-	dbs_tuners_ins.slow_mode_down_persent = input;
 	return count;
 }
 static ssize_t store_fast_mode_up_threshold(struct kobject *a, struct attribute *b, const char *buf, size_t count)
@@ -457,6 +424,28 @@ static ssize_t store_fast_mode_count(struct kobject *a, struct attribute *b,
 	downcounter = 0;
 	return count;
 }
+static ssize_t store_fast_mode_wakeup_freq(struct kobject *a, struct attribute *b,   const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+	dbs_tuners_ins.fast_mode_wakeup_freq = input;
+	return count;
+}
+static ssize_t store_slow_mode_wakeup_freq(struct kobject *a, struct attribute *b,   const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+	dbs_tuners_ins.slow_mode_wakeup_freq = input;
+	return count;
+}
 define_one_global_rw(sampling_rate);
 define_one_global_rw(sampling_down_factor);
 define_one_global_rw(ignore_nice_load);
@@ -464,12 +453,12 @@ define_one_global_rw(fast_mode_up_threshold);
 define_one_global_rw(fast_mode_down_threshold);
 define_one_global_rw(fast_mode_count);
 define_one_global_rw(fast_mode_up_persent);
-define_one_global_rw(fast_mode_down_persent);
+define_one_global_rw(fast_mode_wakeup_freq);
 define_one_global_rw(slow_mode_up_threshold);
 define_one_global_rw(slow_mode_down_threshold);
 define_one_global_rw(slow_mode_count);
 define_one_global_rw(slow_mode_up_persent);
-define_one_global_rw(slow_mode_down_persent);
+define_one_global_rw(slow_mode_wakeup_freq);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -483,15 +472,15 @@ static struct attribute *dbs_attributes[] = {
 	&slow_mode_down_threshold.attr,
 	&slow_mode_count.attr,
 	&fast_mode_up_persent.attr,
-	&fast_mode_down_persent.attr,
+	&fast_mode_wakeup_freq.attr,
 	&slow_mode_up_persent.attr,
-	&slow_mode_down_persent.attr,
+	&slow_mode_wakeup_freq.attr,
 	NULL
 };
 
 static struct attribute_group dbs_attr_group = {
 	.attrs = dbs_attributes,
-	.name = "smartdroid",
+	.name = "smartactive",
 };
 
 
@@ -505,47 +494,47 @@ static void update_gov_tunable(int flag)
 		dbs_tuners_ins.down_threshold = dbs_tuners_ins.fast_mode_down_threshold;
 		dbs_tuners_ins.up_threshold = dbs_tuners_ins.up_threshold;
 		dbs_tuners_ins.up_persent = dbs_tuners_ins.fast_mode_up_persent;
-		dbs_tuners_ins.down_persent = dbs_tuners_ins.fast_mode_down_persent;
+		dbs_tuners_ins.wakeup_freq = dbs_tuners_ins.fast_mode_wakeup_freq;
 	}
 	else	//slow
 	{
 		dbs_tuners_ins.down_threshold = dbs_tuners_ins.slow_mode_down_threshold;
 		dbs_tuners_ins.up_threshold = dbs_tuners_ins.slow_mode_up_threshold;
 		dbs_tuners_ins.up_persent = dbs_tuners_ins.slow_mode_up_persent;
-		dbs_tuners_ins.down_persent = dbs_tuners_ins.slow_mode_down_persent;
+		dbs_tuners_ins.wakeup_freq = dbs_tuners_ins.slow_mode_wakeup_freq;
 	}
 }
 //early suspend
 #ifdef CONFIG_EARLYSUSPEND
-static void cpufreq_smartdroid_early_suspend(struct early_suspend *h)
+static void cpufreq_smartactive_early_suspend(struct early_suspend *h)
 {
 	mutex_lock(&dbs_mutex);
 	stored_sampling_rate = dbs_tuners_ins.sampling_rate;
 	stored_up_threshold = dbs_tuners_ins.up_threshold;
 	stored_down_threshold = dbs_tuners_ins.down_threshold;
 	stored_up_persent = dbs_tuners_ins.up_persent;
-	stored_down_persent = dbs_tuners_ins.down_persent;
+	stored_wakeup_freq = dbs_tuners_ins.wakeup_freq;
 	update_gov_tunable(0);
 	is_early_suspend = 1;
 	dbs_tuners_ins.sampling_rate = stored_sampling_rate * 6;
 	mutex_unlock(&dbs_mutex);
 }
 
-static void cpufreq_smartdroid_late_resume(struct early_suspend *h)
+static void cpufreq_smartactive_late_resume(struct early_suspend *h)
 {
 	mutex_lock(&dbs_mutex);	
 	dbs_tuners_ins.sampling_rate = stored_sampling_rate;
 	dbs_tuners_ins.up_threshold = stored_up_threshold;
 	dbs_tuners_ins.down_threshold = stored_down_threshold;
 	dbs_tuners_ins.up_persent = stored_up_persent;
-	dbs_tuners_ins.down_persent = stored_down_persent;
+	dbs_tuners_ins.wakeup_freq = stored_wakeup_freq;
 	is_early_suspend = 0;
 	mutex_unlock(&dbs_mutex);
 }
 
-static struct early_suspend cpufreq_smartdroid_early_suspend_info = {
-	.suspend = cpufreq_smartdroid_early_suspend,
-	.resume = cpufreq_smartdroid_late_resume,
+static struct early_suspend cpufreq_smartactive_early_suspend_info = {
+	.suspend = cpufreq_smartactive_early_suspend,
+	.resume = cpufreq_smartactive_late_resume,
 	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1,
 };
 #endif
@@ -617,9 +606,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	}
 
 	if (dbs_tuners_ins.fast_mode_up_persent == 0 ||
-		dbs_tuners_ins.fast_mode_down_persent == 0 ||
-		dbs_tuners_ins.slow_mode_up_persent == 0 ||
-		dbs_tuners_ins.slow_mode_down_persent == 0)
+		dbs_tuners_ins.slow_mode_up_persent == 0)
 		return;
 
 	/* Check for frequency increase */
@@ -660,7 +647,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 */
 	if (max_load < (dbs_tuners_ins.down_threshold - 10)) {
 		downcounter++;
-		/* check counter */
+		/* check counter is max*/
 		if (downcounter == dbs_tuners_ins.slow_mode_count){
 			update_gov_tunable(1);
 			downcounter = 0;
@@ -668,9 +655,8 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			if(upcounter != 0)
 				upcounter--;
 		}
-		freq_target = (dbs_tuners_ins.down_persent * policy->max) / 100;
 
-		this_dbs_info->requested_freq -= freq_target;
+		this_dbs_info->requested_freq = dbs_tuners_ins.wakeup_freq;
 		if (this_dbs_info->requested_freq < policy->min)
 			this_dbs_info->requested_freq = policy->min;
 
@@ -837,11 +823,11 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 	return 0;
 }
 
-#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_SMARTDROID
+#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_SMARTACTIVE
 static
 #endif
-struct cpufreq_governor cpufreq_gov_smartdroid = {
-	.name			= "smartdroid",
+struct cpufreq_governor cpufreq_gov_smartactive = {
+	.name			= "smartactive",
 	.governor		= cpufreq_governor_dbs,
 	.max_transition_latency	= TRANSITION_LATENCY_LIMIT,
 	.owner			= THIS_MODULE,
@@ -850,22 +836,22 @@ struct cpufreq_governor cpufreq_gov_smartdroid = {
 static int __init cpufreq_gov_dbs_init(void)
 {
 #ifdef CONFIG_EARLYSUSPEND
-	register_early_suspend(&cpufreq_smartdroid_early_suspend_info);
+	register_early_suspend(&cpufreq_smartactive_early_suspend_info);
 #endif
-	return cpufreq_register_governor(&cpufreq_gov_smartdroid);
+	return cpufreq_register_governor(&cpufreq_gov_smartactive);
 }
 
 static void __exit cpufreq_gov_dbs_exit(void)
 {
-	cpufreq_unregister_governor(&cpufreq_gov_smartdroid);
+	cpufreq_unregister_governor(&cpufreq_gov_smartactive);
 }
 
 
 MODULE_AUTHOR("NewWorld <cae11cae@naver.com>");
-MODULE_DESCRIPTION("'cpufreq_smartdroid' - A smartdroid governor based on conservative");
+MODULE_DESCRIPTION("'cpufreq_smartactive' - A smart governor based on conservative");
 MODULE_LICENSE("GPL");
 
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_SMARTDROID
+#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_SMARTACTIVE
 fs_initcall(cpufreq_gov_dbs_init);
 #else
 module_init(cpufreq_gov_dbs_init);

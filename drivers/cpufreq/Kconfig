@@ -94,7 +94,7 @@ config CPU_FREQ_DEFAULT_GOV_SMARTDROID
 	bool "smartdroid"
 	select CPU_FREQ_GOV_SMARTDROID
 	help
-	Governor smartdroid -> A Greatest Governor
+	Governor smartdroid
 config CPU_FREQ_DEFAULT_GOV_INTELLIDEMAND
 	bool "intellidemand"
 	select CPU_FREQ_GOV_INTELLIDEMAND
@@ -110,6 +110,11 @@ config CPU_FREQ_DEFAULT_GOV_INTERACTVIEX
 	select CPU_FREQ_GOV_INTERACTIVEX
 	help
 	Governor interactiveX
+config CPU_FREQ_DEFAULT_GOV_SMARTACTIVE
+	bool "smartactive"
+	select CPU_FREQ_GOV_SMARTACTIVE
+	help
+	Governor smartactive
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
@@ -200,6 +205,11 @@ config CPU_FREQ_GOV_INTERACTIVEX
 	depends on CPU_FREQ
 	help
 	governor interactiveX
+config CPU_FREQ_GOV_SMARTACTIVE
+	tristate "'smartactive' cpufreq governor"
+	depends on CPU_FREQ
+	help
+	governor smartactive
 menu "x86 CPU frequency scaling drivers"
 depends on X86
 source "drivers/cpufreq/Kconfig.x86"

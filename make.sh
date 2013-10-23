@@ -37,7 +37,7 @@ mv -f zImage out/ef52/zImage/$2
   mv -f WCNSS_cfg.dat out/ef52/WCNSS_cfg.dat
   cd out/ef52/
   zip -r "package.zip" "META-INF" "tool" "zImage" *.*
-  mv -f ../package.zip ../../../shared/package.zip
+  mv -f package.zip ../../../shared/package.zip
 echo "Success :D"
 
 elif [ "$1" == "fullbuild" ]; then
