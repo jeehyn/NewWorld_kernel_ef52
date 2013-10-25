@@ -75,6 +75,7 @@ static unsigned int is_early_suspend = 0;
 static unsigned int upcounter = 0;
 static unsigned int downcounter = 0;
 
+static unsigned int is_fast_mode = 0;
 static void do_dbs_timer(struct work_struct *work);
 
 struct cpu_dbs_info_s {
@@ -120,6 +121,7 @@ static struct dbs_tuners {
 	unsigned int fast_mode_up_persent;
 	unsigned int fast_mode_wakeup_freq;
 	unsigned int slow_mode_up_persent;
+	unsigned int slow_mode_wakeup_freq;
 } dbs_tuners_ins = {
 	.up_threshold = SLOW_MODE_FREQUENCY_UP_THRESHOLD,
 	.down_threshold = SLOW_MODE_FREQUENCY_DOWN_THRESHOLD,
@@ -131,12 +133,10 @@ static struct dbs_tuners {
 	.fast_mode_down_threshold = FAST_MODE_FREQUENCY_DOWN_THRESHOLD,
 	.fast_mode_count = DEF_UPCOUNT,
 	.fast_mode_up_persent = FAST_MODE_UP_PERSENT,
-	.fast_mode_wakeup_freq = FAST_MODE_WAKEUP_FREQ,
 	.slow_mode_up_threshold = SLOW_MODE_FREQUENCY_UP_THRESHOLD,
 	.slow_mode_down_threshold = SLOW_MODE_FREQUENCY_DOWN_THRESHOLD,
 	.slow_mode_count = DEF_DOWNCOUNT,
 	.slow_mode_up_persent = SLOW_MODE_UP_PERSENT,
-	.slow_mode_wakeup_freq = SLOW_MODE_WAKEUP_FREQ,
 };
 static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
 {
@@ -295,7 +295,7 @@ static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 	}
 	return count;
 }
-int is_correct_persentage(int ret, int input)
+int is_correct_persentaged(int ret, int input)
 {
 	if (ret < 1)
 		return 1;
@@ -305,7 +305,6 @@ int is_correct_persentage(int ret, int input)
 	
 	return 0;
 }
-
 static ssize_t store_fast_mode_up_persent(struct kobject *a, struct attribute *b, const char *buf, size_t count)
 {
 	unsigned int input;
@@ -313,7 +312,7 @@ static ssize_t store_fast_mode_up_persent(struct kobject *a, struct attribute *b
 	int compare;
 	ret = sscanf(buf, "%u", &input);
 	
-	compare = is_correct_persentage(ret, input);
+	compare = is_correct_persentaged(ret, input);
 	if(compare == 1)
 		return -EINVAL;
 	
@@ -330,7 +329,7 @@ static ssize_t store_slow_mode_up_persent(struct kobject *a, struct attribute *b
 	int compare;
 	ret = sscanf(buf, "%u", &input);
 	
-	compare = is_correct_persentage(ret, input);
+	compare = is_correct_persentaged(ret, input);
 	if(compare == 1)
 		return -EINVAL;
 	
@@ -495,6 +494,7 @@ static void update_gov_tunable(int flag)
 		dbs_tuners_ins.up_threshold = dbs_tuners_ins.up_threshold;
 		dbs_tuners_ins.up_persent = dbs_tuners_ins.fast_mode_up_persent;
 		dbs_tuners_ins.wakeup_freq = dbs_tuners_ins.fast_mode_wakeup_freq;
+		is_fast_mode = 1;
 	}
 	else	//slow
 	{
@@ -502,6 +502,7 @@ static void update_gov_tunable(int flag)
 		dbs_tuners_ins.up_threshold = dbs_tuners_ins.slow_mode_up_threshold;
 		dbs_tuners_ins.up_persent = dbs_tuners_ins.slow_mode_up_persent;
 		dbs_tuners_ins.wakeup_freq = dbs_tuners_ins.slow_mode_wakeup_freq;
+		is_fast_mode = 0;
 	}
 }
 //early suspend
@@ -614,7 +615,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		upcounter++;
 		/* check if counter is max */
 		if (upcounter == dbs_tuners_ins.fast_mode_count){
-			update_gov_tunable(0);
+			update_gov_tunable(1);
 			upcounter = 0;
 			if(downcounter != 0)
 				downcounter--;
@@ -649,14 +650,21 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		downcounter++;
 		/* check counter is max*/
 		if (downcounter == dbs_tuners_ins.slow_mode_count){
-			update_gov_tunable(1);
+			update_gov_tunable(0);
 			downcounter = 0;
 
 			if(upcounter != 0)
 				upcounter--;
 		}
-
-		this_dbs_info->requested_freq = dbs_tuners_ins.wakeup_freq;
+		/* check if fast mode */
+		if(is_fast_mode == 1){
+		/* if we are in fast mode, down freq code is changed */
+		freq_target = (dbs_tuners_ins.fast_mode_down_persent * policy->max) / 100;
+		this_dbs_info->requested_freq -= freq_target;
+		}
+		else{
+		this_dbs_info->requested_freq = dbs_tuners_ins.slow_mode_wakeup_freq;
+		}
 		if (this_dbs_info->requested_freq < policy->min)
 			this_dbs_info->requested_freq = policy->min;
 

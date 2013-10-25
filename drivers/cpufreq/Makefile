@@ -7,7 +7,6 @@ obj-$(CONFIG_CPU_FREQ_STAT)             += cpufreq_stats.o
 obj-$(CONFIG_CPU_FREQ_GOV_PERFORMANCE)	+= cpufreq_performance.o
 obj-$(CONFIG_CPU_FREQ_GOV_INTELLIDEMAND) += cpufreq_intellidemand.o
 obj-$(CONFIG_CPU_FREQ_GOV_LAZY) += cpufreq_lazy.o
-obj-$(CONFIG_CPU_FREQ_GOV_SMARTDROID) += cpufreq_smartdroid.o
 obj-$(CONFIG_CPU_FREQ_GOV_INTERACTIVEX) += cpufreq_interactivex.o
 obj-$(CONFIG_CPU_FREQ_GOV_ONDEMAND)	+= cpufreq_ondemand.o
 obj-$(CONFIG_CPU_FREQ_GOV_CONSERVATIVE)	+= cpufreq_conservative.o
