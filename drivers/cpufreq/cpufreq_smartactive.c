@@ -36,6 +36,8 @@
 #define DEF_FREQUENCY_DOWN_THRESHOLD		(20)
 #define DEF_UP_COUNT				(1)
 #define DEF_DOWN_COUNT				(1)
+#define DEF_LOW_LIMIT_FREQ			(810000)
+#define DEF_NOM_LIMIT_FREQ			(1728000)
 
 /*
  * The polling frequency of this governor depends on the capability of
@@ -115,11 +117,15 @@ static struct dbs_tuners {
 	unsigned int up_threshold;
 	unsigned int down_threshold;
 	unsigned int ignore_nice;
+	unsigned int low_state_limit_freq;
+	unsigned int nom_state_limit_freq;
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
 	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
+	.low_state_limit_freq = DEF_LOW_LIMIT_FREQ,
+	.nom_state_limit_freq = DEF_NOM_LIMIT_FREQ,
 };
 int up_count = DEF_UP_COUNT;
 int down_count = DEF_DOWN_COUNT;
@@ -159,7 +165,7 @@ static inline cputime64_t get_cpu_idle_time(unsigned int cpu, cputime64_t *wall)
 static int get_freq_array_length(void){
 	int i = sizeof(available_freq_table);
 	int j = sizeof(available_freq_table[0]);
-	return i / j;
+	return (i / j) - 1;
 }
 static int freq_check(int min, int max)
 {
@@ -227,6 +233,8 @@ show_one(sampling_down_factor, sampling_down_factor);
 show_one(ignore_nice_load, ignore_nice);
 show_one(up_threshold, up_threshold);
 show_one(down_threshold, down_threshold);
+show_one(low_state_limit_freq, low_state_limit_freq);
+show_one(nom_state_limit_freq, nom_state_limit_freq);
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 					  struct attribute *b,
@@ -288,6 +296,37 @@ static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 	}
 	return count;
 }
+static ssize_t store_low_state_limit_freq(struct kobject *a, struct attribute *b, const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	
+	if(ret != 1)
+		return -EINVAL;
+	
+	if(input > available_freq_table[get_freq_array_length()] ||
+		input >= dbs_tuners_ins.nom_state_limit_freq)
+		return -EINVAL;
+
+	dbs_tuners_ins.low_state_limit_freq = input;
+	return count;
+}
+static ssize_t store_nom_state_limit_freq(struct kobject *a, struct attribute *b, const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	if(ret != 1)
+		return -EINVAL;
+	
+	if(input > available_freq_table[get_freq_array_length()] ||
+		input <= dbs_tuners_ins.low_state_limit_freq)
+		return -EINVAL;
+	dbs_tuners_ins.nom_state_limit_freq = input;
+	return count;
+}
 static ssize_t store_up_threshold(struct kobject *a, struct attribute *b, const char *buf, size_t count)
 {
 	unsigned int input;
@@ -323,6 +362,8 @@ define_one_global_rw(sampling_down_factor);
 define_one_global_rw(ignore_nice_load);
 define_one_global_rw(up_threshold);
 define_one_global_rw(down_threshold);
+define_one_global_rw(low_state_limit_freq);
+define_one_global_rw(nom_state_limit_freq);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -331,6 +372,8 @@ static struct attribute *dbs_attributes[] = {
 	&ignore_nice_load.attr,
 	&up_threshold.attr,
 	&down_threshold.attr,
+	&low_state_limit_freq.attr,
+	&nom_state_limit_freq.attr,
 	NULL
 };
 
@@ -367,7 +410,21 @@ static struct early_suspend cpufreq_smartactive_early_suspend_info = {
 	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1,
 };
 #endif
-
+void update_freq_count(int point)
+{
+	if(point == 0){	//low
+	up_count = 1;
+	down_count = 2;
+	}
+	else if(point == 1){	//nom
+	up_count = 1;
+	down_count = 2;
+	}
+	else{		//high
+	up_count = 2;
+	down_count = 1;
+	}
+}
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
 	unsigned int load = 0;
@@ -454,15 +511,17 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			return;
 
 		/* check point value and check if it is max*/
-		if (point + up_count > (get_freq_array_length() - 1))
-			point = get_freq_array_length() - 1;
+		if (point + up_count > (get_freq_array_length()))
+			point = get_freq_array_length();
 		else
 			point += up_count;
-		/* if freq is more than half freq */
-		if (available_freq_table[get_freq_array_length() - 1] / 2 > available_freq_table[point])
-			down_count = 1;
+		/* state check codes... */
+		if(available_freq_table[point] <= dbs_tuners_ins.low_state_limit_freq)
+			update_freq_count(0);
+		else if(available_freq_table[point] <= dbs_tuners_ins.nom_state_limit_freq)
+			update_freq_count(1);
 		else
-			down_count = 2;
+			update_freq_count(2);
 		/* Now, set freq */
 		this_dbs_info->requested_freq = available_freq_table[point];
 
@@ -484,11 +543,13 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			point = 0;
 		else
 			point -= down_count;
-		/* if freq is more than half freq */
-		if (!(available_freq_table[get_freq_array_length() - 1] / 2 > available_freq_table[point]))
-			down_count = 2;
+		/* state check codes... */
+		if(available_freq_table[point] <= dbs_tuners_ins.low_state_limit_freq)
+			update_freq_count(0);
+		else if(available_freq_table[point] <= dbs_tuners_ins.nom_state_limit_freq)
+			update_freq_count(1);
 		else
-			down_count = 1;
+			update_freq_count(2);
 		/* Now, set freq */
 		this_dbs_info->requested_freq = available_freq_table[point];
 
