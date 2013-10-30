@@ -239,7 +239,7 @@ static ssize_t store_down_sampling_rate(struct kobject *a, struct attribute *b,
 
 	if (ret != 1)
 		return -EINVAL;
-	else if(input > dbs_tuners_ins.up_sampling_rate)
+	else if(input < dbs_tuners_ins.up_sampling_rate)
 		return -EINVAL;
 	dbs_tuners_ins.down_sampling_rate = input;
 	return count;
@@ -252,7 +252,7 @@ static ssize_t store_up_sampling_rate(struct kobject *a, struct attribute *b, co
 
 	if (ret != 1)
 		return -EINVAL;
-	else if(input > MIN_SAMPLING_RATE)
+	else if(input < MIN_SAMPLING_RATE)
 		return -EINVAL;
 	else if(dbs_tuners_ins.down_sampling_rate > (input / 2))
 		dbs_tuners_ins.down_sampling_rate = input / 2;
