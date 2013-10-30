@@ -37,8 +37,7 @@
 #define DEF_UP_COUNT				(1)
 #define DEF_DOWN_COUNT				(1)
 #define DEF_LOW_LIMIT_FREQ			(384000)
-#define DEF_UP_SAMPLING_RATE			(100000)
-#define DEF_DOWN_SAMPLING_RATE			(15000)
+#define DEF_SAMPLING_RATE			(15000)
 
 #define MIN_SAMPLING_RATE			(10000)
 /*
@@ -106,8 +105,6 @@ static unsigned int dbs_enable;	/* number of CPUs using this policy */
 static DEFINE_MUTEX(dbs_mutex);
 
 static struct dbs_tuners {
-	unsigned int up_sampling_rate;
-	unsigned int down_sampling_rate;
 	unsigned int sampling_rate;
 	unsigned int sampling_down_factor;
 	unsigned int up_threshold;
@@ -115,13 +112,9 @@ static struct dbs_tuners {
 	unsigned int ignore_nice;
 	unsigned int low_state_limit_freq;
 } dbs_tuners_ins = {
-	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
-	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
 	.low_state_limit_freq = DEF_LOW_LIMIT_FREQ,
-	.up_sampling_rate = DEF_UP_SAMPLING_RATE,
-	.down_sampling_rate = DEF_DOWN_SAMPLING_RATE,
 };
 static int up_count = DEF_UP_COUNT;
 static int down_count = DEF_DOWN_COUNT;
@@ -207,8 +200,7 @@ static ssize_t show_##file_name						\
 {									\
 	return sprintf(buf, "%u\n", dbs_tuners_ins.object);		\
 }
-show_one(up_sampling_rate, up_sampling_rate);
-show_one(down_sampling_rate, down_sampling_rate);
+show_one(sampling_rate, sampling_rate);
 show_one(sampling_down_factor, sampling_down_factor);
 show_one(ignore_nice_load, ignore_nice);
 show_one(up_threshold, up_threshold);
@@ -230,21 +222,7 @@ static ssize_t store_sampling_down_factor(struct kobject *a,
 	return count;
 }
 
-static ssize_t store_down_sampling_rate(struct kobject *a, struct attribute *b,
-				   const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	if (ret != 1)
-		return -EINVAL;
-	else if(input < dbs_tuners_ins.up_sampling_rate)
-		return -EINVAL;
-	dbs_tuners_ins.down_sampling_rate = input;
-	return count;
-}
-static ssize_t store_up_sampling_rate(struct kobject *a, struct attribute *b, const char *buf, size_t count)
+static ssize_t store_sampling_rate(struct kobject *a, struct attribute *b, const char *buf, size_t count)
 {
 	unsigned int input;
 	int ret;
@@ -254,10 +232,8 @@ static ssize_t store_up_sampling_rate(struct kobject *a, struct attribute *b, co
 		return -EINVAL;
 	else if(input < MIN_SAMPLING_RATE)
 		return -EINVAL;
-	else if(dbs_tuners_ins.down_sampling_rate > (input / 2))
-		dbs_tuners_ins.down_sampling_rate = input / 2;
 
-	dbs_tuners_ins.up_sampling_rate = input;
+	dbs_tuners_ins.sampling_rate = input;
 	return count;
 }
 static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
@@ -335,8 +311,7 @@ static ssize_t store_down_threshold(struct kobject *a, struct attribute *b,
 	return count;
 }
 
-define_one_global_rw(up_sampling_rate);
-define_one_global_rw(down_sampling_rate);
+define_one_global_rw(sampling_rate);
 define_one_global_rw(sampling_down_factor);
 define_one_global_rw(ignore_nice_load);
 define_one_global_rw(up_threshold);
@@ -344,8 +319,7 @@ define_one_global_rw(down_threshold);
 define_one_global_rw(low_state_limit_freq);
 
 static struct attribute *dbs_attributes[] = {
-	&up_sampling_rate.attr,
-	&down_sampling_rate.attr,
+	&sampling_rate.attr,
 	&sampling_down_factor.attr,
 	&ignore_nice_load.attr,
 	&up_threshold.attr,
@@ -475,7 +449,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	/* Check for frequency increase */
 	if (max_load > dbs_tuners_ins.up_threshold) {
 		this_dbs_info->down_skip = 0;
-		dbs_tuners_ins.sampling_rate = dbs_tuners_ins.up_sampling_rate;
+
 		/* check point value and check if it is max */
 		if (point + up_count > (get_freq_array_length()))
 			point = get_freq_array_length();
@@ -510,7 +484,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 * policy. To be safe, we focus 10 points under the threshold.
 	 */
 	if (max_load < dbs_tuners_ins.down_threshold) {
-		dbs_tuners_ins.sampling_rate = dbs_tuners_ins.down_sampling_rate;
+		
 		/* check point is min */
 		if ((point - down_count) < 0)
 			point = 0;
@@ -632,8 +606,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 			 * conservative does not implement micro like ondemand
 			 * governor, thus we are bound to jiffes/HZ
 			 */
-			dbs_tuners_ins.sampling_rate =
-				dbs_tuners_ins.up_sampling_rate;
+			dbs_tuners_ins.sampling_rate = DEF_SAMPLING_RATE;
 
 			cpufreq_register_notifier(
 					&dbs_cpufreq_notifier_block,
