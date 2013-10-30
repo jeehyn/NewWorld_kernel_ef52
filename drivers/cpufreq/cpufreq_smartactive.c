@@ -39,7 +39,8 @@
 #define DEF_LOW_LIMIT_FREQ			(384000)
 #define DEF_UP_SAMPLING_RATE			(100000)
 #define DEF_DOWN_SAMPLING_RATE			(15000)
-#define DEF_MIN_SAMPLING_RATE			(10000)
+
+#define MIN_SAMPLING_RATE			(10000)
 /*
  * The polling frequency of this governor depends on the capability of
  * the processor. Default polling frequency is 1000 times the transition
@@ -50,8 +51,6 @@
  * this governor will not work.
  * All times here are in uS.
  */
-
-static unsigned int min_sampling_rate;
 
 #define LATENCY_MULTIPLIER			(1000)
 #define MIN_LATENCY_MULTIPLIER			(100)
@@ -240,14 +239,12 @@ static ssize_t store_down_sampling_rate(struct kobject *a, struct attribute *b,
 
 	if (ret != 1)
 		return -EINVAL;
-	if (input < min_sampling_rate)
+	else if(input > dbs_tuners_ins.up_sampling_rate)
 		return -EINVAL;
-
-	dbs_tuners_ins.sampling_rate = input;
+	dbs_tuners_ins.down_sampling_rate = input;
 	return count;
 }
-static ssize_t store_up_sampling_rate(struct kobject *a, struct attribute *b,
-				   const char *buf, size_t count)
+static ssize_t store_up_sampling_rate(struct kobject *a, struct attribute *b, const char *buf, size_t count)
 {
 	unsigned int input;
 	int ret;
@@ -255,10 +252,12 @@ static ssize_t store_up_sampling_rate(struct kobject *a, struct attribute *b,
 
 	if (ret != 1)
 		return -EINVAL;
-	if (input < min_sampling_rate)
+	else if(input > MIN_SAMPLING_RATE)
 		return -EINVAL;
+	else if(dbs_tuners_ins.down_sampling_rate > (input / 2))
+		dbs_tuners_ins.down_sampling_rate = input / 2;
 
-	dbs_tuners_ins.sampling_rate = input;
+	dbs_tuners_ins.up_sampling_rate = input;
 	return count;
 }
 static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
@@ -633,8 +632,6 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 			 * conservative does not implement micro like ondemand
 			 * governor, thus we are bound to jiffes/HZ
 			 */
-			/* Bring kernel and HW constraints together */
-			min_sampling_rate = DEF_MIN_SAMPLING_RATE;
 			dbs_tuners_ins.sampling_rate =
 				dbs_tuners_ins.up_sampling_rate;
 
