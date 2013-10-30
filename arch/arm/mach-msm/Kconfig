@@ -1720,8 +1720,8 @@ config CPU_OVERCLOCK
 		if not boot, check this
 
 if CPU_OVERCLOCK != n
-config CPU_OVERCLOCK_ULTIMATE
-	bool "CPU Overclock to 2.1"
+config CPU_OVERCLOCK_ULTRA
+	bool "CPU Overclock to 2.2"
 	default n
 	help
 		if not boot, check this

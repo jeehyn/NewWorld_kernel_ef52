@@ -20,6 +20,8 @@ fi
 
 if [ "$1" = "" ]; then
   make CONFIG_NO_ERROR_ON_MISMATCH=y CONFIG_DEBUG_SECTION_MISMATCH=y -j32 O=$ODIR ARCH=arm CROSS_COMPILE=$TOOLCHAIN zImage
+elif [ "$1" == "testbuild" ]; then
+./make.sh && ./make.sh curzip oc_qsound
 
 elif [ "$1" == "curzip" ]; then
 if [ "$2" == "" ]; then
