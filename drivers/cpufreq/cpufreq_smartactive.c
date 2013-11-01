@@ -115,8 +115,8 @@ static struct dbs_tuners {
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
 	.low_state_limit_freq = DEF_LOW_LIMIT_FREQ,
-	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD
-	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD
+	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
+	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
 };
 static int up_count = DEF_UP_COUNT;
 static int down_count = DEF_DOWN_COUNT;
