@@ -115,6 +115,8 @@ static struct dbs_tuners {
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
 	.low_state_limit_freq = DEF_LOW_LIMIT_FREQ,
+	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD
+	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD
 };
 static int up_count = DEF_UP_COUNT;
 static int down_count = DEF_DOWN_COUNT;
@@ -303,7 +305,7 @@ static ssize_t store_down_threshold(struct kobject *a, struct attribute *b,
 	ret = sscanf(buf, "%u", &input);
 
 	/* cannot be lower than 11 otherwise freq will not fall */
-	if (ret != 1 || input < 11 || input > 100 ||
+	if (ret != 1 || input < 1 || input > 100 ||
 			input >= dbs_tuners_ins.up_threshold)
 		return -EINVAL;
 
