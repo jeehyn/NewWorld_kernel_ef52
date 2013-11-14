@@ -35,6 +35,7 @@ echo "zImage setting is $2..."
 	./irongetmod.sh
 mv -f zImage out/ef52/zImage/$2
   mv -f cfg80211.ko out/ef52/cfg80211.ko
+  mv -f exfat_fs.ko out/ef52/exfat_fs.ko
   mv -f wlan.ko out/ef52/wlan.ko
   mv -f WCNSS_cfg.dat out/ef52/WCNSS_cfg.dat
   cd out/ef52/
@@ -48,8 +49,8 @@ echo "Error : You must enter zImage's name"
 echo "Usage : ./make.sh fullbuild [zImage name]"
 exit
 fi
-	./make.sh
 	./make.sh modules
+	./make.sh
 	./make.sh curzip $2
 elif [ "$1" == "modules" ]; then
   make CONFIG_NO_ERROR_ON_MISMATCH=y CONFIG_DEBUG_SECTION_MISMATCH=y -j16 O=$ODIR ARCH=arm CROSS_COMPILE=$TOOLCHAIN modules
