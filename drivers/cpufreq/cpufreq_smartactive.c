@@ -37,9 +37,7 @@
 #define DEF_UP_COUNT				(1)
 #define DEF_DOWN_COUNT				(1)
 #define DEF_LOW_LIMIT_FREQ			(324000)
-#define DEF_ACTIVE_FREQ_LIMIT			(384000)
 #define DEF_SAMPLING_RATE			(15000)
-#define DEF_ACTIVE_LOAD				(20)
 
 #define MIN_SAMPLING_RATE			(10000)
 /*
@@ -114,16 +112,12 @@ static struct dbs_tuners {
 	unsigned int down_threshold;
 	unsigned int ignore_nice;
 	unsigned int low_state_limit_freq;
-	unsigned int active_load;
-	unsigned int active_freq_limit;
 } dbs_tuners_ins = {
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
 	.low_state_limit_freq = DEF_LOW_LIMIT_FREQ,
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
 	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
-	.active_load = DEF_ACTIVE_LOAD,
-	.active_freq_limit = DEF_ACTIVE_FREQ_LIMIT,
 };
 static int up_count = DEF_UP_COUNT;
 static int down_count = DEF_DOWN_COUNT;
@@ -176,18 +170,8 @@ static void init_freq_one_persent(void)
 {
 	int i = 10000;
 	int j;
-	int k = 0;
-	int u = 0;
 	j = i % get_freq_array_length();
-	while(k <= get_freq_array_length())
-	{
-		if(dbs_tuners_ins.active_freq_limit >= available_freq_table[k]){
-			u = get_freq_array_length() - k;
-			break;
-		}
-		k++;
-	}
-	one_freq_persent =  (i - j) / u;
+	one_freq_persent =  (i - j) / get_freq_array_length();
 }
 /* keep track of frequency transitions */
 static int
@@ -237,8 +221,6 @@ show_one(ignore_nice_load, ignore_nice);
 show_one(up_threshold, up_threshold);
 show_one(down_threshold, down_threshold);
 show_one(low_state_limit_freq, low_state_limit_freq);
-show_one(active_freq_limit, active_freq_limit);
-show_one(active_load, active_load);
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 					  struct attribute *b,
@@ -300,21 +282,6 @@ static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 	}
 	return count;
 }
-static ssize_t store_active_load(struct kobject *a, struct attribute *b, const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-	
-	if(ret != 1)
-		return -EINVAL;
-	
-	if(input > 100)
-		return -EINVAL;
-
-	dbs_tuners_ins.active_load = input;
-	return count;
-}
 static ssize_t store_low_state_limit_freq(struct kobject *a, struct attribute *b, const char *buf, size_t count)
 {
 	unsigned int input;
@@ -324,28 +291,10 @@ static ssize_t store_low_state_limit_freq(struct kobject *a, struct attribute *b
 	if(ret != 1)
 		return -EINVAL;
 	
-	if(input > available_freq_table[get_freq_array_length()] ||
-		input <= dbs_tuners_ins.active_freq_limit)
+	if(input > available_freq_table[get_freq_array_length()])
 		return -EINVAL;
 
 	dbs_tuners_ins.low_state_limit_freq = input;
-	return count;
-}
-static ssize_t store_active_freq_limit(struct kobject *a, struct attribute *b, const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-	
-	if(ret != 1)
-		return -EINVAL;
-	
-	if(input > available_freq_table[get_freq_array_length()] ||
-		input >= dbs_tuners_ins.low_state_limit_freq)
-		return -EINVAL;
-	
-	dbs_tuners_ins.active_freq_limit = input;
-	init_freq_one_persent();
 	return count;
 }
 static ssize_t store_up_threshold(struct kobject *a, struct attribute *b, const char *buf, size_t count)
@@ -383,8 +332,6 @@ define_one_global_rw(ignore_nice_load);
 define_one_global_rw(up_threshold);
 define_one_global_rw(down_threshold);
 define_one_global_rw(low_state_limit_freq);
-define_one_global_rw(active_load);
-define_one_global_rw(active_freq_limit);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate.attr,
@@ -393,8 +340,6 @@ static struct attribute *dbs_attributes[] = {
 	&up_threshold.attr,
 	&down_threshold.attr,
 	&low_state_limit_freq.attr,
-	&active_load.attr,
-	&active_freq_limit.attr,
 	NULL
 };
 
@@ -516,16 +461,8 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	}
 
 	/* check if we are in low freq and load persent*/
-	if(dbs_tuners_ins.low_state_limit_freq >= old_freq &&
-		dbs_tuners_ins.active_load <= max_load)
+	if(dbs_tuners_ins.low_state_limit_freq >= old_freq)
 	{
-		while(i <= get_freq_array_length())
-		{
-			if(dbs_tuners_ins.active_load * 100 >= one_freq_persent * i)
-				break;
-			i++;
-		}
-
 		while(i <= get_freq_array_length())
 		{
 			if((i * one_freq_persent) >= max_load * 100)
