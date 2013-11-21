@@ -439,7 +439,6 @@ void __weak arch_enable_nonboot_cpus_begin(void)
 void __weak arch_enable_nonboot_cpus_end(void)
 {
 }
-
 void __ref enable_nonboot_cpus(void)
 {
 	int cpu, error;

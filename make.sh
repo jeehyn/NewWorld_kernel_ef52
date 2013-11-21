@@ -49,7 +49,9 @@ echo "Error : You must enter zImage's name"
 echo "Usage : ./make.sh fullbuild [zImage name]"
 exit
 fi
+	./make.sh
 	./make.sh modules
+# for modpost kernel modules...
 	./make.sh
 	./make.sh curzip $2
 elif [ "$1" == "modules" ]; then
